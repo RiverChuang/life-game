@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#fdf6ea">
+  <meta name="description" content="人生遊戲：從 0 到 99 歲，每週自己安排，自己的人生自己決定。">
+  <title>人生遊戲</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="人生遊戲">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Huninn&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="app"></div>
+  <div id="toast" aria-live="polite"></div>
+  <noscript>這個遊戲需要開啟 JavaScript 才能遊玩。</noscript>
+  <!-- 遊戲引擎與資料 -->
+  <script src="js/engine.js"></script>
+  <script src="js/jobs.js"></script>
+  <script src="js/activities.js"></script>
+  <script src="js/shop.js"></script>
+  <!-- 事件庫 -->
+  <script src="js/events/e0_infant.js"></script>
+  <script src="js/events/e1_toddler.js"></script>
+  <script src="js/events/e2_child.js"></script>
+  <script src="js/events/e3_teen.js"></script>
+  <script src="js/events/e4_family.js"></script>
+  <script src="js/events/e5_daily.js"></script>
+  <script src="js/events/e6_upper_elem.js"></script>
+  <script src="js/events/e7_uni.js"></script>
+  <script src="js/events/e8_army.js"></script>
+  <script src="js/events/e9_work.js"></script>
+  <script src="js/events/e10_life.js"></script>
+  <script src="js/events/e11_adult_daily.js"></script>
+  <script src="js/events/e12_mid.js"></script>
+  <script src="js/events/e13_late.js"></script>
+  <!-- 美術、存檔與畫面 -->
+  <script src="js/art.js"></script>
+  <script src="js/town.js"></script>
+  <script src="js/save.js"></script>
+  <script src="js/ui.js"></script>
+  <script>
+    if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+      window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
+</body>
+</html>
