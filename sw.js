@@ -1,5 +1,5 @@
 /* 離線快取：第一次打開後，沒有網路也能玩。改版時把 VERSION 改掉，手機會自動更新。 */
-const VERSION = 'lifegame-v0.4.1';
+const VERSION = 'lifegame-v0.5.0';
 const FILES = [
     './',
     './css/style.css',
@@ -26,6 +26,7 @@ const FILES = [
     './js/events/e8_army.js',
     './js/events/e9_work.js',
     './js/jobs.js',
+    './js/music.js',
     './js/save.js',
     './js/shop.js',
     './js/town.js',

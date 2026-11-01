@@ -370,3 +370,34 @@ select.text-input { appearance: auto; }
   .topbar { padding-top: calc(10px + env(safe-area-inset-top)); }
   .title-screen, .page { padding-top: calc(18px + env(safe-area-inset-top)); }
 }
+
+/* ===== v0.5 理財與音樂 ===== */
+.topbar .music-btn { margin-right: 6px; font-size: 18px; }
+.title-music { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: 12px; z-index: 5; }
+.bank-box { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0; }
+.bank-box > div { background: #f8f3ea; border-radius: 14px; padding: 10px 12px; }
+.bank-box b { font-size: 18px; }
+.bank-in { gap: 8px; margin: 8px 0; align-items: center; }
+.bank-in .text-input { height: 46px; }
+.bank-btns { gap: 8px; margin: 6px 0; }
+.loan-yr { flex: 0 0 170px; gap: 4px; }
+.loan-yr button { min-height: 40px; font-size: 13px; }
+.stock-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 10px 2px; border-bottom: 1px dashed var(--line); background: none; }
+.stock-row:last-child { border-bottom: 0; }
+.stock-row .an { font-weight: 700; }
+.sec-tag { font-size: 11px; font-weight: 600; color: var(--muted); background: #f3ede3; border-radius: 99px; padding: 1px 7px; margin-left: 2px; }
+.sp-r { display: flex; flex-direction: column; align-items: flex-end; min-width: 64px; }
+.sp-r b { font-size: 15px; }
+.rise { color: #e5604f; font-size: 12px; font-weight: 700; }
+.fall { color: #2fa784; font-size: 12px; font-weight: 700; }
+.spark { flex-shrink: 0; }
+.stock-big { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 10px 0; padding: 12px; background: #f8f3ea; border-radius: 16px; }
+.stock-big .price { font-size: 26px; font-weight: 800; }
+.stock-big .price small { font-size: 12px; color: var(--muted); font-weight: 500; }
+.qty { margin: 12px 0; display: flex; flex-direction: column; gap: 8px; }
+.qty .row { gap: 6px; }
+.qty .row .btn { flex: 1; padding: 0 4px; }
+.text-input.center { text-align: center; }
+.rise-bg { background: #e5604f; }
+/* 開著視窗時，提示訊息移到上方，不擋按鈕 */
+body:has(.modal-wrap) #toast { top: calc(10px + env(safe-area-inset-top)); bottom: auto; }

@@ -69,7 +69,7 @@ LG.addEvents([
   { id: 'c_transfer', a: [7, 13], sc: ELEM, cd: 18, t: '班上來了一位轉學生{newfriend}，一個人坐在角落。', ch: [
     { t: '主動找他聊天', fx: { ch: 1, rel: { newfriend: 30 }, contrib: 1 }, r: '你們發現喜歡同一部卡通。' },
     { t: '觀察看看', fx: {} }] },
-  { id: 'c_divorce', a: [6, 18], k: 'x', once: 1, fs: ['both'], imp: 1, w: 0.18, t: '{parents}坐下來跟你說，他們決定離婚了。他們問你想跟誰住。', ch: [
+  { id: 'c_divorce', a: [6, 18], k: 'x', once: 1, fs: ['both'], imp: 1, w: 0, t: '{parents}坐下來跟你說，他們決定離婚了。他們問你想跟誰住。', ch: [
     { t: '跟媽媽住', fx: { struct: 'mom', md: -8, st: 6 }, r: '你收拾行李，跟媽媽搬到新家。' },
     { t: '跟爸爸住', fx: { struct: 'dad', md: -8, st: 6 }, r: '你留在原本的家，跟爸爸一起生活。' }] },
   { id: 'c_report_hide', a: [8, 13], sc: ELEM, k: 'x', cd: 18, c: s => s.grades < 70, t: '這次考試考差了，考卷需要家長簽名。', ch: [

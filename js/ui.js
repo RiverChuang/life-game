@@ -10,7 +10,7 @@
   const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
   const END_AGE = 99;
 
-  let settings = Object.assign({ speed: 1500, evAuto: true, autoSkipReview: false, statsOpen: false }, Save.settings());
+  let settings = Object.assign({ speed: 1500, evAuto: true, autoSkipReview: false, statsOpen: false, music: true, vol: 0.5 }, Save.settings());
   const ui = { tab: 'month', idx: 0, auto: false, timer: null, modal: null, endSeen: false, form: null, step: 1, sched: null, pickSlot: 0, pickK: 'all' };
 
   const STAT_COLOR = { hp: '#ff6b8b', iq: '#63aef7', ch: '#ffb340', md: '#4fc3a1', ft: '#ff8a5c', cr: '#a48cf7' };
@@ -112,6 +112,7 @@
       '<button class="btn btn-soft btn-block" data-act="load">📂 讀取存檔</button>' +
       '<button class="btn btn-ghost btn-block" data-act="import">匯入存檔檔案</button>' +
       '</div>' +
+      '<div class="title-music">' + musicBtn() + '</div>' +
       '<span class="proto-badge">v' + LG.version + '・0–' + END_AGE + ' 歲養成・活動 ' + (LG.ACTS || []).length + ' 種・事件 ' + LG.events.length + ' 則・職業 ' + (LG.JOBS || []).length + ' 種</span>' +
       '</div>';
   }
@@ -232,12 +233,22 @@
   }
 
   /* ---------------- 主畫面 ---------------- */
+  function musicBtn() {
+    if (!window.Music || !Music.supported()) return '';
+    return '<button class="icon-btn music-btn' + (settings.music ? ' on' : '') + '" data-act="music" aria-label="' + (settings.music ? '關閉音樂' : '開啟音樂') + '">' + (settings.music ? '🎵' : '🔇') + '</button>';
+  }
+  function musicTheme() {
+    const S = LG.state();
+    if (!window.Music) return;
+    const a = S ? S.ageM / 12 : 10;
+    Music.setTheme(a < 3 || a >= 70 ? 'calm' : 'day');
+  }
   function topbar(S) {
     const st = LG.stageOf(S.ageM);
     return '<header class="topbar"><div class="avatar">' + headIcon(S, 46) + '</div>' +
       '<div class="who"><div class="nm">' + esc(S.name) + '<span class="stage-chip">' + st.n + '</span></div>' +
       '<div class="sub">' + LG.ageText(S.ageM) + '・' + dateText(S) + '</div><div class="sub2">' + esc(LG.schoolText()) + '</div></div>' +
-      '<button class="icon-btn" data-act="menu" aria-label="選單">☰</button></header>';
+      musicBtn() + '<button class="icon-btn" data-act="menu" aria-label="選單">☰</button></header>';
   }
   function statRow(label, icon, v, color) {
     v = Math.round(v);
@@ -567,20 +578,92 @@
       Object.keys(D.ACH).map(a => S.ach.includes(a) ? '<div class="ach on"><div class="an">🏆 ' + a + '</div><div class="small muted">' + D.ACH[a] + '</div></div>' : '<div class="ach"><div class="an muted">🔒 ？？？</div><div class="small muted">隱藏成就</div></div>').join('') + '</div></section>';
     return h;
   }
+  /* ---------------- 理財：銀行與股市 ---------------- */
+  const pct = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+  function spark(h, w, hgt) {
+    if (!h || h.length < 2) return '';
+    const mn = Math.min(...h), mx = Math.max(...h), rg = mx - mn || 1;
+    const pts = h.map((v, i) => (i / (h.length - 1) * w).toFixed(1) + ',' + (hgt - 2 - (v - mn) / rg * (hgt - 4)).toFixed(1)).join(' ');
+    const up = h[h.length - 1] >= h[0];
+    return '<svg class="spark" width="' + w + '" height="' + hgt + '" viewBox="0 0 ' + w + ' ' + hgt + '"><polyline points="' + pts + '" fill="none" stroke="' + (up ? '#e5604f' : '#2fa784') + '" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+  }
   function moneyView(S) {
+    const B = LG.bankInfo();
+    const M = LG.market();
     const J = S.job;
-    let h = '<section class="sec card"><h3>資產</h3>' +
-      '<div class="kv"><span>現金存款</span><b class="' + (S.money < 0 ? 'dn' : '') + '">' + money(S.money) + '</b></div>' +
-      '<div class="kv"><span>投資帳戶</span><b>' + money(S.inv ? S.inv.bal : 0) + (S.inv && S.inv.mon ? '<span class="small muted">（每月 ' + money(S.inv.mon) + '）</span>' : '') + '</b></div>' +
-      (S.house ? '<div class="kv"><span>房子</span><b>' + money(S.house.price) + '</b></div>' : '') +
-      (S.loans || []).map(L => '<div class="kv"><span>' + esc(L.n) + '</span><b class="dn">-' + money(L.bal) + '</b></div>').join('') +
+    let h = '<section class="sec card"><h3>資產總覽</h3>' +
+      '<div class="kv"><span>💵 現金（錢包）</span><b class="' + (S.money < 0 ? 'dn' : '') + '">' + money(S.money) + '</b></div>' +
+      '<div class="kv"><span>🏦 銀行存款</span><b>' + money(B.bank) + '</b></div>' +
+      '<div class="kv"><span>📈 股票市值</span><b>' + money(M.val) + (M.val ? '<span class="small ' + (M.val >= M.cost ? 'up' : 'dn') + '">（' + (M.val >= M.cost ? '賺 ' : '賠 ') + money(Math.abs(M.val - M.cost)) + '）</span>' : '') + '</b></div>' +
+      '<div class="kv"><span>📊 定期定額基金</span><b>' + money(S.inv ? S.inv.bal : 0) + (S.inv && S.inv.mon ? '<span class="small muted">（每月 ' + money(S.inv.mon) + '）</span>' : '') + '</b></div>' +
+      (S.house ? '<div class="kv"><span>🏠 房子</span><b>' + money(S.house.price) + '</b></div>' : '') +
+      (S.loans || []).map(L => '<div class="kv"><span>💳 ' + esc(L.n) + '</span><b class="dn">-' + money(L.bal) + '</b></div>').join('') +
       '<div class="kv total"><span>淨資產</span><b>' + money(LG.netWorth()) + '</b></div>' +
       '<div class="kv"><span>勞退個人帳戶</span><b>' + money(S.pension || 0) + '</b></div></section>';
+    // 銀行
+    h += '<section class="sec card"><h3>🏦 小鎮銀行</h3>';
+    if (!B.open) h += '<p class="muted small">' + esc(B.why) + '。現在的零用錢由家裡保管。</p>';
+    else {
+      h += '<p class="small muted">存款年利率 ' + (B.rate * 100).toFixed(1) + '%，每月自動算利息。錢包不夠付帳時，會自動從存款扣。</p>' +
+        '<div class="bank-box"><div><div class="small muted">錢包</div><b>' + money(B.cash) + '</b></div><div><div class="small muted">存款</div><b>' + money(B.bank) + '</b></div></div>' +
+        '<div class="row bank-in"><input id="bank-amt" class="text-input grow" inputmode="numeric" placeholder="輸入金額"><button class="btn btn-soft btn-sm" data-act="bank-max">全部</button></div>' +
+        '<div class="row bank-btns"><button class="btn btn-primary grow" data-act="deposit">存入 ⬇</button><button class="btn btn-soft grow" data-act="withdraw">提領 ⬆</button></div>';
+      const O = B.loanOffer;
+      h += '<h4>貸款</h4>';
+      if (B.loans.length) h += B.loans.map(L => '<div class="shop-row"><span class="aico">💳</span><div class="grow"><div class="an">' + esc(L.n) + '</div><div class="small muted">剩 ' + money(L.bal) + (L.pay ? '・每月還 ' + money(L.pay) : '') + (L.rate ? '・年利率 ' + (L.rate * 100).toFixed(1) + '%' : '') + '</div></div><button class="btn btn-ghost btn-sm" data-act="repay" data-i="' + L.i + '"' + (L.can ? '' : ' disabled') + '>還清</button></div>').join('');
+      if (O.why) h += '<p class="small why">🔒 ' + esc(O.why) + '</p>';
+      else h += '<p class="small muted">信用貸款：最多可借 <b>' + money(O.limit) + '</b>，年利率 <b>' + (O.rate * 100).toFixed(1) + '%</b>（看收入和工作表現）。</p>' +
+        '<div class="row bank-in"><input id="loan-amt" class="text-input grow" inputmode="numeric" placeholder="要借多少"><div class="seg seg3 loan-yr">' + O.years.map(y => '<button data-act="loan-yr" data-v="' + y + '" class="' + ((ui.loanYr || 5) === y ? 'on' : '') + '">' + y + ' 年</button>').join('') + '</div></div>' +
+        '<div class="small muted" id="loan-est"></div><button class="btn btn-soft btn-block" data-act="borrow">申請貸款</button>';
+    }
+    h += '</section>';
+    // 股市
+    h += '<section class="sec card"><h3>📈 小鎮股市</h3>';
+    h += '<p class="small muted">' + (M.open ? '股價每週變動，7 月發股利。買賣手續費 0.1425%，賣出再扣證交稅 0.3%。景氣好時大多上漲，景氣差時要小心。' : '🔒 ' + esc(M.why) + '，現在可以先看看行情。') + '<br>（公司都是虛構的）</p>';
+    h += M.list.map(x => '<button class="stock-row" data-act="stock" data-v="' + x.id + '"><div class="grow"><div class="an">' + esc(x.n) + ' <span class="sec-tag">' + esc(x.sec) + '</span></div>' +
+      '<div class="small muted">' + (x.sh ? '持有 ' + x.sh.toLocaleString() + ' 股・' + (x.val >= x.cost * x.sh ? '<span class="up">賺 ' : '<span class="dn">賠 ') + money(Math.abs(Math.round(x.val - x.cost * x.sh))) + '</span>' : '殖利率約 ' + (x.dy * 100).toFixed(1) + '%') + '</div></div>' +
+      spark(x.hist.concat([x.p]), 60, 26) + '<div class="sp-r"><b>' + x.p.toFixed(2) + '</b><span class="' + (x.chg >= 0 ? 'rise' : 'fall') + '">' + pct(x.chg) + '</span></div></button>').join('');
+    h += '</section>';
     h += '<section class="sec card"><h3>工作</h3>' + (J ? '<div class="kv"><span>職稱</span><b>' + esc(J.title) + '</b></div><div class="kv"><span>公司</span><b>' + esc(J.co) + '</b></div><div class="kv"><span>月薪</span><b>' + money(J.pay) + '</b></div><div class="kv"><span>年資</span><b>' + Math.floor((S.ageM - J.since) / 12) + ' 年 ' + ((S.ageM - J.since) % 12) + ' 個月</b></div>' + statRow('工作表現', '📊', J.perf, '#5aa7f0') : '<p class="muted small">' + (S.ageM < 216 ? '還在念書，還沒開始工作。' : esc(LG.schoolText())) + '</p>') +
       '<div class="kv"><span>學歷</span><b>' + esc(S.degree || '—') + '</b></div><div class="kv"><span>景氣</span><b>' + esc(D.ECON_N[S.econ.s]) + '</b></div></section>';
-    if (S.fin && S.fin.items.length) h += '<section class="sec card"><h3>上個月收支明細</h3>' + S.fin.items.map(x => '<div class="kv"><span>' + esc(x.n) + '</span><b class="' + (x.v >= 0 ? 'up' : 'dn') + '">' + (x.v >= 0 ? '+' : '') + money(x.v) + '</b></div>').join('') + '<div class="kv total"><span>合計</span><b class="' + (S.fin.net >= 0 ? 'up' : 'dn') + '">' + (S.fin.net >= 0 ? '+' : '') + money(S.fin.net) + '</b></div></section>';
+    if (S.fin && S.fin.items.length) h += '<section class="sec card"><h3>上個月收支明細</h3>' + S.fin.items.map(x => '<div class="kv"><span>' + esc(x.n) + '</span><b class="' + (x.note ? 'muted' : x.v >= 0 ? 'up' : 'dn') + '">' + (x.note ? money(x.note) : (x.v >= 0 ? '+' : '') + money(x.v)) + '</b></div>').join('') + '<div class="kv total"><span>錢包合計</span><b class="' + (S.fin.net >= 0 ? 'up' : 'dn') + '">' + (S.fin.net >= 0 ? '+' : '') + money(S.fin.net) + '</b></div></section>';
     return h;
   }
+  function openStock(id) {
+    ui.stockId = id;
+    ui.stockQty = ui.stockQty || 100;
+    const draw = () => {
+      const M = LG.market();
+      const x = M.list.find(s => s.id === ui.stockId);
+      const q = ui.stockQty;
+      const cost = Math.round(x.p * q * (1 + M.fee));
+      const big = x.hist.concat([x.p]);
+      return '<h2>' + esc(x.n) + '</h2><p class="small muted">' + esc(x.sec) + '・' + esc(x.d) + '</p>' +
+        '<div class="stock-big"><div><div class="price">' + x.p.toFixed(2) + ' <small>元／股</small></div><div class="' + (x.chg >= 0 ? 'rise' : 'fall') + '">本週 ' + pct(x.chg) + (x.y1 != null ? '　一年 ' + pct(x.y1) : '') + '</div></div>' + spark(big, 150, 54) + '</div>' +
+        '<div class="kv"><span>持有</span><b>' + (x.sh ? x.sh.toLocaleString() + ' 股（平均成本 ' + x.cost.toFixed(2) + '）' : '還沒有') + '</b></div>' +
+        '<div class="kv"><span>錢包現金</span><b>' + money(M.cash) + '</b></div>' +
+        '<div class="qty"><span>數量</span><div class="row">' + [1, 10, 100, 1000].map(n => '<button class="btn btn-soft btn-sm" data-act="qty" data-v="' + n + '">' + (n === 1000 ? '1 張' : n + ' 股') + '</button>').join('') + '</div>' +
+        '<div class="row"><button class="step" data-act="qty-d" data-v="-1">−</button><input id="stock-q" class="text-input grow center" inputmode="numeric" value="' + q + '"><button class="step" data-act="qty-d" data-v="1">＋</button></div>' +
+        '<div class="small muted center">約 ' + money(cost) + '（含手續費）</div></div>' +
+        (M.open ? '' : '<p class="small why center">🔒 ' + esc(M.why) + '</p>') +
+        '<div class="row bank-btns"><button class="btn btn-primary grow rise-bg" data-act="stock-buy"' + (M.open ? '' : ' disabled') + '>買進</button><button class="btn btn-soft grow" data-act="stock-sell"' + (x.sh ? '' : ' disabled') + '>賣出</button>' + (x.sh ? '<button class="btn btn-ghost" data-act="stock-sellall">全部賣</button>' : '') + '</div>' +
+        '<div class="sheet-actions"><button class="btn btn-ghost" data-act="close-fin">關閉</button></div>';
+    };
+    openModal(draw(), { type: 'stock', draw, dismiss: true });
+    const inp = document.getElementById('stock-q');
+    if (inp) inp.addEventListener('change', () => { ui.stockQty = Math.max(1, Math.floor(+inp.value) || 1); setModalHtml(draw()); rebindQty(); });
+  }
+  function rebindQty() {
+    const inp = document.getElementById('stock-q');
+    if (inp && ui.modal) inp.addEventListener('change', () => { ui.stockQty = Math.max(1, Math.floor(+inp.value) || 1); setModalHtml(ui.modal.draw()); rebindQty(); });
+  }
+  function finDone(r, okMsg) {
+    if (r && r.err) { toast('⚠️ ' + r.err); return false; }
+    autosave();
+    if (okMsg) toast(okMsg);
+    return true;
+  }
+  function readAmt(id) { const el = document.getElementById(id); const v = el ? Math.round(+String(el.value).replace(/[^\d]/g, '')) : 0; return v; }
   function logView(S) {
     const items = S.log.slice(-250).reverse();
     if (!items.length) return '<p class="muted center">人生才剛開始。</p>';
@@ -623,10 +706,12 @@
     }
     app.innerHTML = '<div class="game">' + topbar(S) +
       '<div class="layout"><aside class="side">' + statsPanel(S) + '</aside><main>' +
-      '<nav class="tabs">' + [['month', '小鎮'], ['decide', '抉擇' + (LG.decisions().some(d => d.ok && !['invest', 'job'].includes(d.id)) ? '•' : '')], ['people', '人物'], ['shop', '購物'], ['money', '財務'], ['log', '紀錄']].map(t => '<button data-act="tab" data-t="' + t[0] + '" class="' + (ui.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</nav>' +
+      '<nav class="tabs">' + [['month', '小鎮'], ['decide', '抉擇' + (LG.decisions().some(d => d.ok && !['invest', 'job'].includes(d.id)) ? '•' : '')], ['people', '人物'], ['shop', '購物'], ['money', '理財'], ['log', '紀錄']].map(t => '<button data-act="tab" data-t="' + t[0] + '" class="' + (ui.tab === t[0] ? 'on' : '') + '">' + t[1] + '</button>').join('') + '</nav>' +
       main + '</main></div></div>' + footer(S);
     if (keepScroll) window.scrollTo(0, y);
     flushToasts(S);
+    musicTheme();
+    if (ui.tab === 'money') bindFin();
   }
 
   function showGame() {
@@ -758,8 +843,18 @@
       '<button class="btn btn-soft" data-act="export">⬇️ 匯出存檔檔案（備份用）</button>' +
       '<div class="card sec"><h3>事件播放速度</h3><div class="seg seg3">' + sp.map(o => '<button data-act="speed" data-v="' + o[0] + '" class="' + (settings.speed === o[0] ? 'on' : '') + '">' + o[1] + '</button>').join('') + '</div>' +
       '<label class="small row" style="margin-top:10px"><input type="checkbox" data-act="ev-auto"' + (settings.evAuto ? ' checked' : '') + '> 事件自動一則一則播放（關掉就每則自己點）</label></div>' +
+      (window.Music && Music.supported() ? '<div class="card sec"><h3>背景音樂</h3><label class="small row"><input type="checkbox" data-act="music-chk"' + (settings.music ? ' checked' : '') + '> 播放背景音樂</label><div class="range-row" style="margin-top:8px"><span class="small">音量</span><input type="range" id="vol" min="0" max="100" value="' + Math.round(settings.vol * 100) + '"></div></div>' : '') +
       '<button class="btn btn-ghost" data-act="title">🏠 回到標題（進度已自動存檔）</button>' +
       '<button class="btn btn-primary" data-act="close">繼續遊戲</button></div>', { type: 'menu', dismiss: true });
+    const v = document.getElementById('vol');
+    if (v) v.addEventListener('input', () => { settings.vol = +v.value / 100; if (window.Music) Music.setVolume(settings.vol); Save.saveSettings(settings); });
+  }
+  function bindFin() {
+    const la = document.getElementById('loan-amt'), est = document.getElementById('loan-est');
+    if (la && est) la.addEventListener('input', () => {
+      const B = LG.bankInfo(), O = B.loanOffer, P = readAmt('loan-amt'), n = (ui.loanYr || 5) * 12, r = O.rate / 12;
+      est.textContent = P > 0 ? '每月約還 ' + money(Math.ceil(P * r / (1 - Math.pow(1 + r, -n)))) + '，總共還 ' + money(Math.ceil(P * r / (1 - Math.pow(1 + r, -n))) * n) : '';
+    });
   }
   function slotLine(d, n) {
     if (!d) return '<span class="grow"><span class="sn">存檔 ' + n + '・空白</span></span>';
@@ -911,10 +1006,33 @@
     'skip-review': el => { settings.autoSkipReview = el.checked; Save.saveSettings(settings); },
     'end': () => { ui.endSeen = false; ui.idx = LG.state().cur.items.length; render(true); handleModals(); if (!ui.modal) openEnd(); },
     'menu-close': () => { closeModal(); },
+    'music': () => { settings.music = !settings.music; Save.saveSettings(settings); if (window.Music) { if (settings.music) { Music.setVolume(settings.vol); Music.start(); } else Music.stop(); } document.querySelectorAll('.music-btn').forEach(b => { b.outerHTML = musicBtn(); }); },
+    'music-chk': el => { settings.music = el.checked; Save.saveSettings(settings); if (window.Music) { if (settings.music) { Music.setVolume(settings.vol); Music.start(); } else Music.stop(); } },
+    'bank-max': () => { const el = document.getElementById('bank-amt'); const B = LG.bankInfo(); if (el) el.value = Math.max(0, Math.max(B.cash, B.bank)); },
+    'deposit': () => { const v = readAmt('bank-amt'); if (finDone(LG.deposit(v), '🏦 已存入 ' + money(v))) render(true); },
+    'withdraw': () => { const v = readAmt('bank-amt'); if (finDone(LG.withdraw(v), '💵 已提領 ' + money(v))) render(true); },
+    'loan-yr': el => { ui.loanYr = +el.dataset.v; render(true); },
+    'borrow': () => { const v = readAmt('loan-amt'); const yr = ui.loanYr || 5; if (!v) { toast('請先輸入金額'); return; } if (!confirm('確定向銀行借 ' + money(v) + '，分 ' + yr + ' 年還嗎？')) return; const r = LG.borrow(v, yr); if (finDone(r, '💳 貸款核准！每月還 ' + money(r.pay || 0))) render(true); },
+    'repay': el => { if (!confirm('確定要提前還清嗎？')) return; if (finDone(LG.repay(+el.dataset.i), '✅ 已還清')) render(true); },
+    'stock': el => { stopAuto(); openStock(el.dataset.v); },
+    'qty': el => { ui.stockQty = +el.dataset.v; setModalHtml(ui.modal.draw()); rebindQty(); },
+    'qty-d': el => { const step = ui.stockQty >= 1000 ? 1000 : ui.stockQty >= 100 ? 100 : ui.stockQty >= 10 ? 10 : 1; ui.stockQty = Math.max(1, ui.stockQty + step * +el.dataset.v); setModalHtml(ui.modal.draw()); rebindQty(); },
+    'stock-buy': () => { const r = LG.buyStock(ui.stockId, ui.stockQty); if (finDone(r, '📈 買進成功，共 ' + money(r.tot || 0))) { setModalHtml(ui.modal.draw()); rebindQty(); } },
+    'stock-sell': () => { const r = LG.sellStock(ui.stockId, ui.stockQty); if (finDone(r, r.gain >= 0 ? '💰 賣出，賺了 ' + money(r.gain || 0) : '📉 賣出，賠了 ' + money(-(r.gain || 0)))) { setModalHtml(ui.modal.draw()); rebindQty(); } },
+    'stock-sellall': () => { if (!confirm('全部賣掉？')) return; const r = LG.sellStock(ui.stockId, 'all'); if (finDone(r, r.gain >= 0 ? '💰 全部賣出，賺了 ' + money(r.gain || 0) : '📉 全部賣出，賠了 ' + money(-(r.gain || 0)))) { setModalHtml(ui.modal.draw()); rebindQty(); } },
+    'close-fin': () => { closeModal(); render(true); },
     'end-log': () => { ui.endSeen = true; closeModal(); ui.tab = 'log'; render(); window.scrollTo(0, 0); },
     'replay': () => { ui.form = null; ui.step = 1; showCreate(); }
   };
 
+  let musicArmed = false;
+  const armMusic = () => {
+    if (musicArmed || !window.Music || !settings.music) return;
+    musicArmed = true;
+    Music.setVolume(settings.vol); musicTheme(); Music.start();
+  };
+  document.addEventListener('pointerdown', armMusic, { capture: true });
+  document.addEventListener('keydown', armMusic, { capture: true });
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;

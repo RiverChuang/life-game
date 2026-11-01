@@ -7,8 +7,8 @@
   'use strict';
 
   const LG = (root.LG = root.LG || {});
-  LG.version = '0.4.1';
-  LG.SAVE_VERSION = 4;
+  LG.version = '0.5.0';
+  LG.SAVE_VERSION = 5;
   LG.events = LG.events || [];
   LG.addEvents = function (arr) { for (const e of arr) LG.events.push(e); };
 
@@ -139,6 +139,8 @@
     '含飴弄孫': '當上阿公或阿嬤',
     '長命百歲': '活到 80 歲',
     '人生回憶錄': '把自己的人生故事寫成一本書',
+    '股市新手': '第一次買進股票',
+    '股市贏家': '在股市累計賺到 100 萬元',
     '金婚': '結婚滿 50 年',
     '千萬富翁': '淨資產超過 1,000 萬元',
     '圓滿人生': '活到 99 歲'
@@ -1054,7 +1056,7 @@
     return 'single';
   }
   function netWorth() {
-    let v = S.money + (S.inv ? S.inv.bal : 0);
+    let v = S.money + (S.bank || 0) + stockValue() + (S.inv ? S.inv.bal : 0);
     if (S.house) v += S.house.price;
     for (const L of S.loans || []) v -= L.bal;
     return Math.round(v);
@@ -1500,6 +1502,7 @@
       if (S.give && stt === 'work') add('孝親費', -S.give);
       for (const id of Object.keys(S.own || {})) { const it = shopDef(id); if (it && it.up) add(it.n + '的開銷', -money(it.up)); }
       for (const L of S.loans) {
+        if (L.rate && L.bal > 0 && (L.start == null || S.ageM >= L.start)) L.bal += L.bal * L.rate / 12;
         if (L.pay && (L.start == null || S.ageM >= L.start) && L.bal > 0) {
           const p = Math.min(L.pay, L.bal);
           L.bal -= p;
@@ -1719,6 +1722,8 @@
     postWork();
     natural();
     monthlyFinance();
+    bankMonthly();
+    marketMonthly();
     if (S.st.hp <= 0) healthCrisis([]);
     if (S.ended) { S.cur.phase = 'post'; S.cur.post.push('end'); return true; }
     if (S.stress >= 80 && ageY() >= 6 && !(S.cd.__stress !== undefined && S.ageM - S.cd.__stress < 6)) {
@@ -1744,6 +1749,7 @@
   const GEN_STUDY = { s_study: 1, s_cram: 1.4, s_library: 0.8, s_exam: 1.2, u_study: 0, k_book: 0 };
   function newAcc() { return { cnt: { study: 0, sport: 0, social: 0, leisure: 0, art: 0 }, subj: { chi: 0, eng: 0, math: 0, soc: 0, sci: 0 } }; }
   function ensureWeek() {
+    ensureMoney();
     if (!S.wk) S.wk = { n: 1, acc: newAcc(), soc: 0, out: 3, spots: [], visited: [] };
     if (!S.wk.acc) S.wk.acc = newAcc();
     if (!S.wk.visited) S.wk.visited = [];
@@ -1945,6 +1951,7 @@
   LG.endWeek = function () {
     if (!S || S.cur.phase !== 'week' || S.cur.items.some(i => !i.done)) return false;
     S.wk.spots = [];
+    marketTick();
     if (S.wk.n < 4) {
       S.wk.n++;
       S.cur.phase = 'pre';
@@ -1966,6 +1973,8 @@
     postWork();
     natural();
     monthlyFinance();
+    bankMonthly();
+    marketMonthly();
     if (S.st.hp <= 0) healthCrisis([]);
     if (S.ended) { S.cur.phase = 'post'; if (!S.cur.post.includes('end')) S.cur.post.push('end'); return; }
     if (S.stress >= 80 && ageY() >= 6 && !(S.cd.__stress !== undefined && S.ageM - S.cd.__stress < 6)) {
@@ -2191,6 +2200,253 @@
     return { ok: true };
   };
   LG.ownList = () => Object.keys(S.own || {}).map(id => shopDef(id)).filter(Boolean).map(it => ({ id: it.id, n: it.n, ico: it.ico }));
+
+
+  /* ================================================================
+   * v0.5：銀行（存款、提款、貸款）、股票市場、父母婚姻
+   * ================================================================ */
+  // ---- 銀行 ----
+  const BANK_RATE = 0.016; // 活儲年利率
+  function ensureMoney() {
+    if (S.bank == null) S.bank = 0;
+    if (!S.mkt) initMarket();
+    if (!S.hold) S.hold = {};
+    if (S.fam && S.fam.pm == null) S.fam.pm = clamp(ri(45, 85) + (S.fam.wealth - 3) * 3, 20, 95);
+  }
+  function bankAge() { return ageY() >= 12; }
+  LG.bankInfo = function () {
+    ensureMoney();
+    const a = ageY();
+    const loans = (S.loans || []).map((L, i) => ({ i, n: L.n, bal: Math.round(L.bal), pay: L.pay || 0, rate: L.rate || 0, payoff: Math.round(L.bal), can: !!L.bank && S.money + S.bank >= L.bal }));
+    return { cash: Math.round(S.money), bank: Math.round(S.bank), rate: BANK_RATE, open: bankAge(), why: bankAge() ? '' : '12 歲以上才能自己開戶', loanOffer: loanOffer(), loans, age: a };
+  };
+  LG.deposit = function (amt) {
+    ensureMoney();
+    if (!bankAge()) return { err: '12 歲以上才能自己開戶' };
+    amt = Math.round(amt === 'all' ? S.money : +amt);
+    if (!(amt > 0)) return { err: '金額不對' };
+    if (amt > S.money) return { err: '身上沒有這麼多現金' };
+    S.money -= amt; S.bank += amt;
+    addLog('銀行', '存入 ' + fmtMoney(amt) + '。', 'money');
+    return { ok: true };
+  };
+  LG.withdraw = function (amt) {
+    ensureMoney();
+    amt = Math.round(amt === 'all' ? S.bank : +amt);
+    if (!(amt > 0)) return { err: '金額不對' };
+    if (amt > S.bank) return { err: '存款不夠' };
+    S.bank -= amt; S.money += amt;
+    addLog('銀行', '提領 ' + fmtMoney(amt) + '。', 'money');
+    return { ok: true };
+  };
+  function monthlyPay() {
+    if (status() === 'work' && S.job) return S.job.pay;
+    if (S.retired && S.retire) return (S.retire.civilPen || S.retire.labor || 0) + (S.retire.pensionM || 0);
+    return 0;
+  }
+  function loanOffer() {
+    const a = ageY();
+    const pay = monthlyPay();
+    const has = (S.loans || []).filter(L => L.bank).reduce((t, L) => t + L.bal, 0);
+    let why = '';
+    if (a < 20) why = '要 20 歲以上才能申請貸款';
+    else if (!pay) why = '要有穩定收入（工作或退休金）才能貸款';
+    else if (a >= 75) why = '年紀太大，銀行不核貸';
+    const limit = Math.max(0, Math.round(Math.min(pay * 22, money(3000000)) - has));
+    if (!why && limit < money(30000)) why = '已經接近貸款上限了';
+    const score = clamp((S.job ? S.job.perf : 50) / 100 * 0.4 + clamp(pay / money(80000), 0, 1) * 0.4 + ((S.flags.broke || 0) ? 0 : 0.2), 0, 1);
+    const rate = Math.round((0.085 - score * 0.06) * 1000) / 1000;
+    return { why, limit, rate, years: [3, 5, 7] };
+  }
+  function annuity(P, rate, n) { const r = rate / 12; return Math.ceil(P * r / (1 - Math.pow(1 + r, -n))); }
+  LG.borrow = function (amt, years) {
+    ensureMoney();
+    const o = loanOffer();
+    if (o.why) return { err: o.why };
+    amt = Math.round(+amt);
+    years = [3, 5, 7].includes(+years) ? +years : 5;
+    if (!(amt >= money(10000))) return { err: '最少要借 ' + fmtMoney(money(10000)) };
+    if (amt > o.limit) return { err: '超過可借額度 ' + fmtMoney(o.limit) };
+    const pay = annuity(amt, o.rate, years * 12);
+    S.loans.push({ n: '信用貸款', bal: amt, pay, start: S.ageM + 1, rate: o.rate, bank: true, prin: amt, at: S.ageM });
+    S.money += amt;
+    addLog('貸款', '向銀行借了 ' + fmtMoney(amt) + '，年利率 ' + (o.rate * 100).toFixed(1) + '%，每月還 ' + fmtMoney(pay) + '，共 ' + years + ' 年。', 'money');
+    return { ok: true, pay };
+  };
+  LG.repay = function (i) {
+    ensureMoney();
+    const L = S.loans[i];
+    if (!L) return { err: '沒有這筆貸款' };
+    const due = Math.round(L.bal);
+    if (S.money + S.bank < due) return { err: '現金加存款不夠還清' };
+    let left = due;
+    const c = Math.min(Math.max(0, S.money), left); S.money -= c; left -= c;
+    S.bank -= left;
+    S.loans.splice(i, 1);
+    addLog('貸款', '提前還清' + L.n + ' ' + fmtMoney(due) + '。', 'money');
+    return { ok: true };
+  };
+  // 月底：利息、存款自動扣繳
+  function bankMonthly() {
+    ensureMoney();
+    if (S.bank > 0) {
+      const it = Math.round(S.bank * BANK_RATE / 12);
+      S.bank += it;
+      if (S.fin && it) S.fin.items.push({ n: '銀行利息（存進存款）', v: 0, note: it });
+    }
+    if (S.money < 0 && S.bank > 0) {
+      const t = Math.min(S.bank, -S.money);
+      S.bank -= t; S.money += t;
+      if (S.fin) S.fin.items.push({ n: '從存款自動扣繳', v: 0, note: t });
+      if (S.money >= 0) S.flags.broke = 0;
+    }
+  }
+
+  // ---- 股票市場（公司全是虛構的） ----
+  const STOCKS = [
+    { id: 'idx', n: '小鎮50 指數基金', sec: '指數', p0: 150, beta: 1, vol: 0.012, mu: 0.0002, dy: 0.03, d: '一次買進市場前 50 大公司，波動最小。' },
+    { id: 'chip', n: '晴光晶片', sec: '半導體', p0: 880, beta: 1.4, vol: 0.03, mu: 0.0004, dy: 0.018, d: '幫手機和電腦做晶片的大廠，成長快、波動大。' },
+    { id: 'pc', n: '方塊電腦', sec: '電子', p0: 120, beta: 1.2, vol: 0.026, mu: 0.0001, dy: 0.035, d: '筆電與伺服器組裝。' },
+    { id: 'bank', n: '大樹金控', sec: '金融', p0: 32, beta: 0.7, vol: 0.013, mu: 0.0001, dy: 0.05, d: '銀行和保險，配息穩定。' },
+    { id: 'tel', n: '雲朵電信', sec: '電信', p0: 115, beta: 0.4, vol: 0.009, mu: 0.0004, dy: 0.045, d: '手機門號與網路，景氣不好時也很抗跌。' },
+    { id: 'ship', n: '海鷗航運', sec: '航運', p0: 60, beta: 1.6, vol: 0.045, mu: 0, dy: 0.06, d: '貨櫃船公司，暴漲暴跌。' },
+    { id: 'food', n: '暖暖食品', sec: '食品', p0: 70, beta: 0.5, vol: 0.011, mu: 0.0003, dy: 0.04, d: '泡麵、飲料、便利商店。' },
+    { id: 'bio', n: '新芽生技', sec: '生技', p0: 45, beta: 1.1, vol: 0.05, mu: 0.0002, dy: 0, d: '研發新藥中，可能大成功，也可能一蹶不振。' },
+    { id: 'game', n: '星星遊戲', sec: '娛樂', p0: 210, beta: 1.3, vol: 0.035, mu: 0.0002, dy: 0.02, d: '手機遊戲公司，靠新作品決定股價。' }
+  ];
+  const FEE = 0.001425, TAX = 0.003;
+  function initMarket() {
+    S.mkt = { p: {}, hist: {}, last: {}, wk: 0 };
+    for (const k of STOCKS) {
+      const p = Math.round(k.p0 * S.cpi * rf(0.85, 1.15) * 100) / 100;
+      S.mkt.p[k.id] = p; S.mkt.hist[k.id] = [p]; S.mkt.last[k.id] = p;
+    }
+  }
+  function stockDef(id) { return STOCKS.find(s => s.id === id); }
+  function marketTick() {
+    ensureMoney();
+    const e = S.econ.s;
+    const mret = (e === 'boom' ? 0.0022 : e === 'recession' ? -0.003 : 0.0008) + gauss() * 0.016;
+    for (const k of STOCKS) {
+      let r = k.mu + k.beta * mret + gauss() * k.vol;
+      if (chance(0.004)) r += (chance(0.5) ? 1 : -1) * rf(0.08, 0.25) * (k.vol / 0.03);
+      S.mkt.last[k.id] = S.mkt.p[k.id];
+      S.mkt.p[k.id] = Math.max(1, Math.round(S.mkt.p[k.id] * Math.exp(r) * 100) / 100);
+    }
+    S.mkt.wk++;
+  }
+  function marketMonthly() {
+    ensureMoney();
+    for (const k of STOCKS) { const h = S.mkt.hist[k.id]; h.push(S.mkt.p[k.id]); if (h.length > 36) h.shift(); }
+    // 7 月配息
+    if (S.month === 7) {
+      let tot = 0;
+      for (const id of Object.keys(S.hold)) { const k = stockDef(id); if (!k || !k.dy) continue; tot += S.hold[id].sh * S.mkt.p[id] * k.dy * rf(0.7, 1.2); }
+      tot = Math.round(tot);
+      if (tot > 0) { S.money += tot; if (S.fin) S.fin.items.push({ n: '股票股利', v: tot }); addLog('股利', '收到股票股利 ' + fmtMoney(tot) + '。', 'money'); }
+    }
+  }
+  function stockAge() { return ageY() >= 18; }
+  LG.market = function () {
+    ensureMoney();
+    const list = STOCKS.map(k => {
+      const p = S.mkt.p[k.id], h = S.mkt.hist[k.id], last = S.mkt.last[k.id];
+      const hold = S.hold[k.id];
+      return { id: k.id, n: k.n, sec: k.sec, d: k.d, p, chg: last ? (p - last) / last : 0, y1: h.length > 12 ? (p - h[h.length - 13]) / h[h.length - 13] : null, dy: k.dy, hist: h.slice(), sh: hold ? hold.sh : 0, cost: hold ? hold.cost : 0, val: hold ? Math.round(hold.sh * p) : 0 };
+    });
+    const val = list.reduce((t, x) => t + x.val, 0), cost = list.reduce((t, x) => t + (x.sh ? x.cost * x.sh : 0), 0);
+    return { list, val, cost: Math.round(cost), open: stockAge(), why: stockAge() ? '' : '18 歲以上才能開證券戶', cash: Math.round(S.money), fee: FEE, tax: TAX };
+  };
+  LG.buyStock = function (id, sh) {
+    ensureMoney();
+    if (!stockAge()) return { err: '18 歲以上才能開證券戶' };
+    if (S.ended) return { err: '人生已經結束' };
+    const k = stockDef(id); sh = Math.floor(+sh);
+    if (!k || !(sh > 0)) return { err: '數量不對' };
+    const p = S.mkt.p[id], amt = p * sh, fee = Math.max(20, Math.round(amt * FEE)), tot = Math.round(amt + fee);
+    if (tot > S.money) return { err: '現金不夠（需要 ' + fmtMoney(tot) + '，可以先從銀行提款）' };
+    S.money -= tot;
+    const h = S.hold[id] || { sh: 0, cost: 0 };
+    h.cost = (h.cost * h.sh + tot) / (h.sh + sh); h.sh += sh;
+    S.hold[id] = h;
+    addLog('股票', '買進' + k.n + ' ' + sh + ' 股，每股 ' + p.toFixed(2) + ' 元，共 ' + fmtMoney(tot) + '。', 'money');
+    giveAch('股市新手');
+    return { ok: true, tot };
+  };
+  LG.sellStock = function (id, sh) {
+    ensureMoney();
+    const k = stockDef(id), h = S.hold[id];
+    if (!k || !h) return { err: '沒有持股' };
+    sh = sh === 'all' ? h.sh : Math.min(h.sh, Math.floor(+sh));
+    if (!(sh > 0)) return { err: '數量不對' };
+    const p = S.mkt.p[id], amt = p * sh;
+    const net = Math.round(amt - Math.max(20, amt * FEE) - amt * TAX);
+    const gain = Math.round(net - h.cost * sh);
+    S.money += net;
+    h.sh -= sh;
+    if (h.sh <= 0) delete S.hold[id];
+    S.flags.stockGain = (S.flags.stockGain || 0) + gain;
+    addLog('股票', '賣出' + k.n + ' ' + sh + ' 股，拿回 ' + fmtMoney(net) + '（' + (gain >= 0 ? '賺' : '賠') + ' ' + fmtMoney(Math.abs(gain)) + '）。', 'money');
+    if (S.flags.stockGain >= money(1000000)) giveAch('股市贏家');
+    return { ok: true, net, gain };
+  };
+  function stockValue() { if (!S.hold || !S.mkt) return 0; let v = 0; for (const id of Object.keys(S.hold)) v += S.hold[id].sh * S.mkt.p[id]; return Math.round(v); }
+
+  // ---- 父母的婚姻（隨機） ----
+  function parentsMonthly() {
+    ensureMoney();
+    const a = ageY();
+    if (S.fam.struct !== 'both' || a >= 25) return;
+    const mom = npcsBy('mom')[0], dad = npcsBy('dad')[0];
+    if (!mom || !dad) return;
+    S.fam.pm = clamp(S.fam.pm + gauss() * 2.2 + (S.fam.pm < 50 ? -0.15 : 0.12) - (S.econ.s === 'recession' ? 0.2 : 0) - (S.fam.wealth <= 1 ? 0.1 : 0), 0, 100);
+    if (a < 3) return;
+    // 吵架的預兆
+    if (S.fam.pm < 42 && chance(0.05) && !(S.cd.__pfight != null && S.ageM - S.cd.__pfight < 8)) {
+      S.cd.__pfight = S.ageM;
+      sysCard('爸媽吵架了', pick(['半夜你被吵醒，聽到爸媽在客廳大聲爭吵。', '吃晚飯的時候，爸媽一句話也不說，氣氛好冷。', '爸爸摔門出去，媽媽在房間裡哭。']), null, {
+        opts: a < 7 ? [{ t: '抱著娃娃躲進被窩', v: 'hide' }, { t: '跑去抱住媽媽', v: 'hug' }] : [{ t: '鼓起勇氣勸他們別吵了', v: 'talk' }, { t: '躲回房間戴上耳機', v: 'hide' }, { t: '找爺爺奶奶或親戚幫忙', v: 'help' }], h: 'pfight', sn: 'home'
+      });
+      return;
+    }
+    // 離婚
+    const p = S.fam.pm < 22 ? 0.022 : S.fam.pm < 32 ? 0.004 : 0;
+    if (p && chance(p)) {
+      S.flags.pDivorce = S.ageM;
+      if (a < 7) {
+        const v = chance(0.7) ? 'mom' : 'dad';
+        const out = [];
+        setStruct(v, out);
+        sysCard('爸媽離婚了', '你還小，不太懂發生了什麼事。只知道從那天起，' + (v === 'mom' ? '爸爸' : '媽媽') + '不再住在家裡，你和' + (v === 'mom' ? '媽媽' : '爸爸') + '一起生活。', { md: -10, st: 6 }, { sn: 'home' });
+        last().chips.push(...out);
+      } else {
+        sysCard('爸媽要離婚了', '爸媽把你叫到客廳，說他們努力過了，但決定分開。「不管怎樣，我們都一樣愛你。」他們問你想跟誰住。', null, {
+          opts: [{ t: '跟媽媽住', v: 'mom' }, { t: '跟爸爸住', v: 'dad' }], h: 'pdivorce', sn: 'home'
+        });
+      }
+    }
+  }
+  const MONEY_H = {
+    pfight(j, item) {
+      const v = item.opts[j].v;
+      const out = [];
+      if (v === 'talk') { const ok = chance(0.35 + S.st.ch / 250); if (ok) { S.fam.pm = clamp(S.fam.pm + 12, 0, 100); item.res = '爸媽愣了一下，抱著你說對不起。那天之後他們吵得少了。'; applyFx({ st: 2, rel: { parents: 4 } }, {}, out); } else { item.res = '爸媽叫你回房間，說大人的事小孩別管。'; applyFx({ md: -4, st: 4 }, {}, out); } item.ok = ok; }
+      else if (v === 'help') { S.fam.pm = clamp(S.fam.pm + 7, 0, 100); item.res = '親戚來家裡幫忙調解，氣氛緩和了一些。'; applyFx({ st: 2 }, {}, out); }
+      else if (v === 'hug') { S.fam.pm = clamp(S.fam.pm + 5, 0, 100); item.res = '媽媽抱著你，慢慢不哭了。'; applyFx({ md: -2 }, {}, out); const m = npcsBy('mom')[0]; if (m) m.rel = clamp(m.rel + 4, -100, 100); }
+      else { item.res = '你把音樂開得很大聲，假裝什麼都沒聽到。'; applyFx({ md: -5, st: 5 }, {}, out); }
+      return out;
+    },
+    pdivorce(j, item) {
+      const v = item.opts[j].v;
+      const out = [];
+      setStruct(v, out);
+      applyFx({ md: -10, st: 8 }, {}, out);
+      const pn = npcsBy(v)[0]; if (pn) pn.rel = clamp(pn.rel + 6, -100, 100);
+      item.res = v === 'mom' ? '你收拾好行李，跟媽媽搬到新家。爸爸說週末會來看你。' : '你留在原本的家，跟爸爸一起生活。媽媽說隨時可以打給她。';
+      return out;
+    }
+  };
+  Object.assign(SYS_H, MONEY_H);
 
   /* ---- 人生抉擇 ---- */
   function crushNpc() { return npcsBy('crush')[0]; }
@@ -2757,6 +3013,7 @@
     S.skills = {};
     S.sched = [];
     S.wk = null; S.subj = null; S.own = {}; S.homeLv = 2; S.plan7 = [];
+    S.bank = 0; S.hold = {}; S.mkt = null;
     // 家人
     const surname = SURN.includes(n[0]) ? n[0] : pick(SURN);
     S.surname = surname;
@@ -2854,6 +3111,7 @@
     monthlyMilitary();
     monthlyPrep();
     monthlyFamily();
+    parentsMonthly();
     monthlyLife();
     if (S.ended) { S.cur.phase = 'post'; return true; }
     preWork();
@@ -2924,7 +3182,7 @@
   LG.serialize = function () { return JSON.stringify(S); };
   LG.load = function (obj) {
     const o = typeof obj === 'string' ? JSON.parse(obj) : obj;
-    if (!o || !o.cur || ![1, 2, 3, 4].includes(o.v)) throw new Error('存檔格式不符');
+    if (!o || !o.cur || ![1, 2, 3, 4, 5].includes(o.v)) throw new Error('存檔格式不符');
     S = o;
     if (o.v === 1) migrateV1();
     if (S.v === 2) {
@@ -2937,7 +3195,9 @@
       ensureAges();
     }
     if (S.v === 3) S.v = 4;
+    if (S.v === 4) S.v = 5;
     ensureWeek();
+    ensureMoney();
     EV_INDEX = null;
     return S;
   };
