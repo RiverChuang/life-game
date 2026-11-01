@@ -10,7 +10,7 @@
   const rnd = arr => arr[Math.floor(Math.random() * arr.length)];
   const END_AGE = 99;
 
-  let settings = Object.assign({ speed: 1500, evAuto: true, autoSkipReview: false, statsOpen: false, music: true, vol: 0.5 }, Save.settings());
+  let settings = Object.assign({ speed: 1500, evAuto: true, autoSkipReview: false, statsOpen: false, music: true, vol: 0.6 }, Save.settings());
   const ui = { tab: 'month', idx: 0, auto: false, timer: null, modal: null, endSeen: false, form: null, step: 1, sched: null, pickSlot: 0, pickK: 'all' };
 
   const STAT_COLOR = { hp: '#ff6b8b', iq: '#63aef7', ch: '#ffb340', md: '#4fc3a1', ft: '#ff8a5c', cr: '#a48cf7' };
@@ -587,6 +587,26 @@
     const up = h[h.length - 1] >= h[0];
     return '<svg class="spark" width="' + w + '" height="' + hgt + '" viewBox="0 0 ' + w + ' ' + hgt + '"><polyline points="' + pts + '" fill="none" stroke="' + (up ? '#e5604f' : '#2fa784') + '" stroke-width="1.6" stroke-linejoin="round"/></svg>';
   }
+  const CAT_N = { service: '服務業', road: '交通物流', factory: '工廠技術', office: '辦公室', tech: '科技', medical: '醫療', teach: '教育', creative: '創意', public: '公職', army: '軍職' };
+  function reqList(reqs) {
+    return '<ul class="reqs">' + reqs.map(r => '<li class="' + (r.ok ? 'ok' : 'no') + '">' + (r.ok ? '✅' : '⬜') + ' ' + esc(r.t) + (r.cur != null && !r.ok ? '<span class="cur">（目前 ' + esc(String(r.cur)) + '）</span>' : '') + '</li>').join('') + '</ul>';
+  }
+  function openCareer() {
+    stopAuto();
+    const draw = () => {
+      const all = LG.careers();
+      const cats = ['all'].concat(Object.keys(CAT_N).filter(c => all.some(j => j.cat === c)));
+      const f = ui.careerCat || 'all';
+      const list = all.filter(j => f === 'all' || j.cat === f).sort((a, b) => b.goal - a.goal || b.ok - a.ok || b.pay - a.pay);
+      return '<h2>🧭 職業規劃</h2><p class="small muted">每種職業需要的條件都列在下面。設定一個目標，找工作時會優先出現（⭐）。</p>' +
+        '<div class="chips pick-tabs">' + cats.map(c => '<button data-act="cat-f" data-v="' + c + '" class="' + (f === c ? 'on' : '') + '">' + (c === 'all' ? '全部' : CAT_N[c]) + '</button>').join('') + '</div>' +
+        '<div class="act-list">' + list.map(j => '<div class="career' + (j.goal ? ' goal' : '') + '"><div class="row"><div class="grow"><div class="an">' + esc(j.n) + (j.now ? ' <span class="sec-tag">目前工作</span>' : '') + (j.ok ? ' <span class="okchip">可應徵</span>' : '') + '</div><div class="small muted">起薪約 ' + money(j.pay) + '・' + esc(j.lv.join(' → ')) + '</div></div>' +
+          (j.goal ? '<button class="btn btn-ghost btn-sm" data-act="goal" data-v="">取消</button>' : '<button class="btn btn-soft btn-sm" data-act="goal" data-v="' + j.id + '">設為目標</button>') + '</div>' +
+          (j.d ? '<div class="small">' + esc(j.d) + '</div>' : '') + reqList(j.reqs) + '</div>').join('') + '</div>' +
+        '<div class="sheet-actions"><button class="btn btn-ghost" data-act="close-fin">關閉</button></div>';
+    };
+    openModal(draw(), { type: 'career', draw, dismiss: true });
+  }
   function moneyView(S) {
     const B = LG.bankInfo();
     const M = LG.market();
@@ -639,7 +659,11 @@
       '<div class="small muted">' + (x.sh ? '持有 ' + x.sh.toLocaleString() + ' 股・' + (x.val >= x.cost * x.sh ? '<span class="up">賺 ' : '<span class="dn">賠 ') + money(Math.abs(Math.round(x.val - x.cost * x.sh))) + '</span>' : '殖利率約 ' + (x.dy * 100).toFixed(1) + '%') + '</div></div>' +
       spark(x.hist.concat([x.p]), 60, 26) + '<div class="sp-r"><b>' + x.p.toFixed(2) + '</b><span class="' + (x.chg >= 0 ? 'rise' : 'fall') + '">' + pct(x.chg) + '</span></div></button>').join('');
     h += '</section>';
-    h += '<section class="sec card"><h3>工作</h3>' + (J ? '<div class="kv"><span>職稱</span><b>' + esc(J.title) + '</b></div><div class="kv"><span>公司</span><b>' + esc(J.co) + '</b></div><div class="kv"><span>月薪</span><b>' + money(J.pay) + '</b></div><div class="kv"><span>年資</span><b>' + Math.floor((S.ageM - J.since) / 12) + ' 年 ' + ((S.ageM - J.since) % 12) + ' 個月</b></div>' + statRow('工作表現', '📊', J.perf, '#5aa7f0') : '<p class="muted small">' + (S.ageM < 216 ? '還在念書，還沒開始工作。' : esc(LG.schoolText())) + '</p>') +
+    const PR = LG.promo();
+    const G = LG.goal();
+    const workExtra = (PR ? (PR.top ? '<p class="small muted">🎖️ 已經是這個職業的最高職位。</p>' : '<h4>升遷到「' + esc(PR.next) + '」的條件</h4>' + reqList(PR.reqs) + '<p class="small muted">' + (PR.ok ? '條件都達成了！可以到「抉擇」申請升遷，或等年底考績。' : '全部達成後，可以到「抉擇」申請升遷，年底考績也有機會直接升。') + '</p>') : '') +
+      (G ? '<h4>🧭 職業目標：' + esc(G.n) + '</h4>' + reqList(G.reqs) : '');
+    h += '<section class="sec card"><h3>工作</h3>' + workExtra + (J ? '<div class="kv"><span>職稱</span><b>' + esc(J.title) + '</b></div><div class="kv"><span>公司</span><b>' + esc(J.co) + '</b></div><div class="kv"><span>月薪</span><b>' + money(J.pay) + '</b></div><div class="kv"><span>年資</span><b>' + Math.floor((S.ageM - J.since) / 12) + ' 年 ' + ((S.ageM - J.since) % 12) + ' 個月</b></div>' + statRow('工作表現', '📊', J.perf, '#5aa7f0') : '<p class="muted small">' + (S.ageM < 216 ? '還在念書，還沒開始工作。' : esc(LG.schoolText())) + '</p>') +
       '<div class="kv"><span>學歷</span><b>' + esc(S.degree || '—') + '</b></div><div class="kv"><span>景氣</span><b>' + esc(D.ECON_N[S.econ.s]) + '</b></div></section>';
     if (S.fin && S.fin.items.length) h += '<section class="sec card"><h3>上個月收支明細</h3>' + S.fin.items.map(x => '<div class="kv"><span>' + esc(x.n) + '</span><b class="' + (x.note ? 'muted' : x.v >= 0 ? 'up' : 'dn') + '">' + (x.note ? money(x.note) : (x.v >= 0 ? '+' : '') + money(x.v)) + '</b></div>').join('') + '<div class="kv total"><span>錢包合計</span><b class="' + (S.fin.net >= 0 ? 'up' : 'dn') + '">' + (S.fin.net >= 0 ? '+' : '') + money(S.fin.net) + '</b></div></section>';
     return h;
@@ -977,6 +1001,7 @@
     'decide': el => {
       const S = LG.state();
       const from = S.cur.items.length;
+      if (el.dataset.v === 'career') { openCareer(); return; }
       if (el.dataset.v === 'invest') { ui.tab = 'money'; render(); const f = document.getElementById('fund'); if (f) f.scrollIntoView({ block: 'start' }); return; }
       if (!LG.decide(el.dataset.v)) { toast('現在還不能這麼做'); return; }
       autosave();
@@ -1031,6 +1056,8 @@
     'borrow': () => { const v = readAmt('loan-amt'); const yr = ui.loanYr || 5; if (!v) { toast('請先輸入金額'); return; } if (!confirm('確定向銀行借 ' + money(v) + '，分 ' + yr + ' 年還嗎？')) return; const r = LG.borrow(v, yr); if (finDone(r, '💳 貸款核准！每月還 ' + money(r.pay || 0))) render(true); },
     'repay': el => { if (!confirm('確定要提前還清嗎？')) return; if (finDone(LG.repay(+el.dataset.i), '✅ 已還清')) render(true); },
     'stock': el => { stopAuto(); openStock(el.dataset.v); },
+    'goal': el => { LG.setGoal(el.dataset.v || null); autosave(); toast(el.dataset.v ? '🧭 已設為職業目標' : '已取消目標'); setModalHtml(ui.modal.draw()); },
+    'cat-f': el => { ui.careerCat = el.dataset.v; setModalHtml(ui.modal.draw()); },
     'fund-pick': el => { const i = document.getElementById('fund-amt'); if (i) i.value = el.dataset.v; },
     'fund-set': () => { const v = readAmt('fund-amt'); if (!v) { toast('請輸入金額，或按「停止扣款」'); return; } if (finDone(LG.setInvest(v), '📊 每月定期定額 ' + money(Math.round(v / 100) * 100))) render(true); },
     'fund-stop': () => { if (finDone(LG.setInvest(0), '已停止每月扣款')) render(true); },
@@ -1047,14 +1074,13 @@
     'replay': () => { ui.form = null; ui.step = 1; showCreate(); }
   };
 
-  let musicArmed = false;
+  // 手機瀏覽器只允許在「點擊完成」時開始播放；還沒成功就每次點擊都再試一次
   const armMusic = () => {
-    if (musicArmed || !window.Music || !settings.music) return;
-    musicArmed = true;
+    if (!window.Music || !settings.music) return;
+    if (Music.isPlaying() && Music.state() === 'running') return;
     Music.setVolume(settings.vol); musicTheme(); Music.start();
   };
-  document.addEventListener('pointerdown', armMusic, { capture: true });
-  document.addEventListener('keydown', armMusic, { capture: true });
+  ['pointerup', 'touchend', 'click', 'keydown'].forEach(ev => document.addEventListener(ev, armMusic, { capture: true, passive: true }));
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-act]');
     if (!el || el.disabled) return;

@@ -136,17 +136,40 @@
     buildMelody();
     return true;
   }
+  // iPhone：讓網頁音效走「媒體」聲道，靜音鍵開著也聽得到；並在手勢中播一段無聲音訊解鎖
+  let tag = null, unlocked = false;
+  function silentWav() {
+    const sr = 8000, n = sr / 2, buf = new ArrayBuffer(44 + n * 2), v = new DataView(buf);
+    const w = (o, str) => { for (let i = 0; i < str.length; i++) v.setUint8(o + i, str.charCodeAt(i)); };
+    w(0, 'RIFF'); v.setUint32(4, 36 + n * 2, true); w(8, 'WAVE'); w(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+    v.setUint32(24, sr, true); v.setUint32(28, sr * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true); w(36, 'data'); v.setUint32(40, n * 2, true);
+    return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+  }
+  function unlock() {
+    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch (e) { /* 不支援 */ }
+    if (!tag && root.Audio) {
+      try { tag = new Audio(silentWav()); tag.loop = true; tag.setAttribute('playsinline', ''); tag.volume = 0.01; } catch (e) { tag = null; }
+    }
+    if (tag) { const p = tag.play(); if (p && p.catch) p.catch(() => {}); }
+    if (!unlocked && ctx) {
+      const b = ctx.createBuffer(1, 1, 22050), src = ctx.createBufferSource();
+      src.buffer = b; src.connect(ctx.destination); src.start(0);
+      unlocked = true;
+    }
+  }
+  Music.state = () => (ctx ? ctx.state : 'none');
   Music.supported = () => !!(root.AudioContext || root.webkitAudioContext);
   Music.isPlaying = () => playing;
   Music.start = function () {
     if (!ensure()) return false;
-    if (ctx.state === 'suspended') ctx.resume();
+    unlock();
+    if (ctx.state !== 'running') { const p = ctx.resume(); if (p && p.catch) p.catch(() => {}); }
     if (playing) return true;
     playing = true;
     nextT = ctx.currentTime + 0.08;
     master.gain.cancelScheduledValues(ctx.currentTime);
     master.gain.setValueAtTime(master.gain.value, ctx.currentTime);
-    master.gain.linearRampToValueAtTime(vol * 0.9, ctx.currentTime + 1.2);
+    master.gain.linearRampToValueAtTime(vol * 1.6, ctx.currentTime + 1.2);
     clearInterval(timer);
     timer = setInterval(schedule, TICK);
     return true;
@@ -157,11 +180,11 @@
     master.gain.cancelScheduledValues(ctx.currentTime);
     master.gain.setValueAtTime(master.gain.value, ctx.currentTime);
     master.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.4);
-    setTimeout(() => { if (!playing) { clearInterval(timer); timer = null; } }, 450);
+    setTimeout(() => { if (!playing) { clearInterval(timer); timer = null; if (tag) tag.pause(); } }, 450);
   };
   Music.setVolume = function (v) {
     vol = Math.max(0, Math.min(1, v));
-    if (ctx && playing) { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.linearRampToValueAtTime(vol * 0.9, ctx.currentTime + 0.15); }
+    if (ctx && playing) { master.gain.cancelScheduledValues(ctx.currentTime); master.gain.linearRampToValueAtTime(vol * 1.6, ctx.currentTime + 0.15); }
   };
   Music.setTheme = function (t) {
     if (!THEMES[t] || t === theme) return;
@@ -172,8 +195,8 @@
   if (root.document) {
     root.document.addEventListener('visibilitychange', () => {
       if (!ctx) return;
-      if (root.document.hidden) { if (playing) ctx.suspend(); }
-      else if (playing) { ctx.resume(); nextT = Math.max(nextT, ctx.currentTime + 0.05); }
+      if (root.document.hidden) { if (playing) { ctx.suspend(); if (tag) tag.pause(); } }
+      else if (playing) { ctx.resume().then(() => { nextT = Math.max(nextT, ctx.currentTime + 0.05); }).catch(() => {}); if (tag) tag.play().catch(() => {}); }
     });
   }
 })(typeof window !== 'undefined' ? window : globalThis);

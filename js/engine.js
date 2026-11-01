@@ -7,7 +7,7 @@
   'use strict';
 
   const LG = (root.LG = root.LG || {});
-  LG.version = '0.5.1';
+  LG.version = '0.6.0';
   LG.SAVE_VERSION = 5;
   LG.events = LG.events || [];
   LG.addEvents = function (arr) { for (const e of arr) LG.events.push(e); };
@@ -134,7 +134,7 @@
     '有情人終成眷屬': '和心愛的人結婚',
     '新手爸媽': '迎接第一個孩子',
     '買房成家': '買下自己的房子',
-    '才藝大師': '把一項技能練到大師等級',
+    '才藝大師': '把一項技能練到專業級',
     '退休樂活': '順利退休',
     '含飴弄孫': '當上阿公或阿嬤',
     '長命百歲': '活到 80 歲',
@@ -793,17 +793,17 @@
       payTuition();
     } else if (m === 9) {
       S.flags.sickYear = 0;
-      if (sc.stage === 'none' && S.ageM >= 36) {
-        sc.stage = 'kinder'; sc.name = makeSchoolName('kinder');
-        sysCard('上幼兒園', '你開始上「' + sc.name + '」了。第一天抓著' + parentsWord() + '的衣角不放，老師笑著把你牽進教室。', { md: -2, ch: 2 });
-      } else if (sc.stage === 'kinder' && S.ageM >= 72) {
-        sc.stage = 'elem'; sc.grade = 1; sc.name = makeSchoolName('elem'); S.grades = clamp(45 + S.st.iq * 0.4 + gauss() * 5, 40, 95); S.subj = null; ensureWeek();
-        sysCard('國小入學', '你背著新書包走進「' + sc.name + '」，成為一年級新生。', { md: 3, iq: 1 });
+      if (sc.stage === 'none' && S.ageM >= 36 && S.ageM < 72 && !S.flags.noKinder) {
+        S.cur.items.push(Object.assign(kindCardItem('上幼兒園', parentsWord() + '在討論要讓你上哪一間幼兒園。', ['kpub', 'kbi', 'kforest'], 'kKind'), {}));
+        last().opts.push({ t: '先不上幼兒園', d: '在家多陪家人，6 歲直接上小學。', v: 'none' }); last().choices.push({ t: '先不上幼兒園', d: '在家多陪家人，6 歲直接上小學。', dis: null });
+      } else if ((sc.stage === 'kinder' || sc.stage === 'none') && S.ageM >= 72) {
+        sc.stage = 'elem'; sc.grade = 1; sc.kind = 'epub'; sc.name = makeSchoolName('elem'); S.grades = clamp(45 + S.st.iq * 0.4 + gauss() * 5, 40, 95); S.subj = null; ensureWeek();
+        kindCard('國小入學', '要念哪一間國小呢？', ['epub', 'epri', 'eexp'], 'eKind');
       } else if (sc.stage === 'elem') {
         if (sc.grade >= 6) {
-          sc.stage = 'junior'; sc.grade = 7; sc.name = makeSchoolName('junior');
+          sc.stage = 'junior'; sc.grade = 7; sc.kind = 'jpub'; sc.name = makeSchoolName('junior');
           npcsBy('friend').forEach(n => { n.rel = clamp(n.rel - 8, -100, 100); });
-          sysCard('升上國中', '你升上「' + sc.name + '」七年級，換上了新制服。功課變多了，班上也是一群新面孔。', { st: 5, md: 1 });
+          kindCard('升上國中', '國小畢業了！要念哪裡呢？功課會變多，班上也會是一群新面孔。', ['jpub', 'jpri', 'jmusic', 'jsport', 'jsci'], 'jKind');
         } else {
           sc.grade++;
           sysCard('開學', '新學期開始，你升上國小' + sc.grade + '年級。', null, { log: false });
@@ -956,9 +956,11 @@
       sc.grade = 9; // 9 月才會升 10 年級
       if (v.startsWith('senior')) { sc.next = 'senior'; sc.tier = +v.slice(6); }
       else { sc.next = v; sc.tier = 2; }
-      if (v === 'voc' || v === 'jc') sc.dept = pick(v === 'voc' ? ['電機科', '資訊科', '餐飲科', '商業經營科', '廣告設計科', '汽車科'] : ['護理科', '電機科', '資訊管理科', '應用外語科', '企業管理科']);
+      sc.dept = null; sc.nextKind = null;
       S.flags.upperPending = true;
-      item.res = '你決定念' + item.opts[j].t + (sc.dept ? '（' + sc.dept + '）' : '') + '。';
+      item.res = '你決定念' + item.opts[j].t + '。';
+      if (v === 'voc' || v === 'jc') deptCard(v);
+      else kindCard('選擇班別', '高中有不同的班別，要念哪一班？', ['spub', 'ssci', 'slang', 'sart', 'ssport'], 'sKind');
       addLog('升學', item.res, 'school');
       return [];
     },
@@ -1139,9 +1141,9 @@
   function jobHuntCard() {
     const cand = jobs().filter(jobOk).filter(j => !(S.job && S.job.id === j.id) && j.id !== 'owner');
     if (!cand.length) return;
-    const offers = cand.map(j => ({ id: j.id, pay: startPay(j), pct: hirePct(j) })).sort((x, y) => y.pay - x.pay).slice(0, 8);
+    const offers = cand.map(j => ({ id: j.id, pay: startPay(j), pct: hirePct(j) })).sort((x, y) => (y.id === S.flags.goalJob) - (x.id === S.flags.goalJob) || y.pay - x.pay).slice(0, 8);
     const employed = !!S.job;
-    const opts = offers.map(o => { const j = jobDef(o.id); return { t: '應徵' + j.n + '（月薪約 ' + fmtMoney(o.pay) + '）', d: j.d || '', pct: o.pct, v: o }; });
+    const opts = offers.map(o => { const j = jobDef(o.id); return { t: (o.id === S.flags.goalJob ? '⭐ ' : '') + '應徵' + j.n + '（月薪約 ' + fmtMoney(o.pay) + '）', d: j.d || '', pct: o.pct, v: o }; });
     const goals = jobs().filter(j => !jobOk(j) && !j.special && j.id !== 'owner').sort((x, y) => y.pay - x.pay).slice(0, 3);
     for (const j of goals) opts.push({ t: j.n + '（月薪約 ' + fmtMoney(startPay(j)) + '）', dis: jobWhy(j), v: null });
     opts.push({ t: employed ? '還是留在現在的公司' : '這個月先不找，休息一下', v: null });
@@ -1159,14 +1161,11 @@
     if (S.econ.s === 'recession') raise *= 0.4;
     { const ref = (jd.pay || J.pay) * S.wageMul * (1 + 0.3 * J.lvl); raise *= clamp(1.2 - J.pay / ref, 0, 1); }
     const lvls = jd.lv || [J.title];
-    if (p >= 64 && J.lvl < lvls.length - 1 && S.ageM - J.lvlSince >= 24 && chance(0.5 + (p - 64) / 50)) {
-      J.lvl++; J.title = lvls[J.lvl]; J.lvlSince = S.ageM;
-      S.flags.bestLvl = Math.max(S.flags.bestLvl || 0, J.lvl);
-      J.pay = Math.round(J.pay * rf(1.15, 1.28) / 100) * 100;
-      S.flags.promos = (S.flags.promos || 0) + 1;
-      text = '年度考績「' + grade + '」，你升上了' + J.title + '！月薪調整為 ' + fmtMoney(J.pay) + '。';
+    const PR = promoReqs();
+    if (PR && !PR.top && PR.ok && chance(0.75)) {
+      doPromote(J, jd);
+      text = '年度考績「' + grade + '」，升遷條件全部達成，你升上了' + J.title + '！月薪調整為 ' + fmtMoney(J.pay) + '。';
       fx = { md: 8 };
-      giveAch('升官發財');
     } else {
       J.pay = Math.round(J.pay * (1 + raise / 100) / 100) * 100;
       text = '年度考績「' + grade + '」。' + (raise >= 0.5 ? '調薪 ' + raise.toFixed(1) + '%，月薪變成 ' + fmtMoney(J.pay) + '。' : '今年沒有調薪。');
@@ -1621,8 +1620,8 @@
    * 養成模式：每月行程、技能、人生抉擇
    * ================================================================ */
   const SKILLS = { piano: '鋼琴', art: '繪畫', dance: '舞蹈', swim: '游泳', ball: '球類運動', code: '程式設計', english: '英文', cook: '料理', write: '寫作', invest: '理財', garden: '園藝', calli: '書法', fit: '健身' };
-  const SKILL_LV = [0, 8, 24, 50, 95, 180];
-  const SKILL_LV_N = ['未學', '入門', '初級', '中級', '高級', '大師'];
+  const SKILL_LV = [0, 1, 25, 50, 75, 100];
+  const SKILL_LV_N = ['未學', '入門', '初級', '中級', '高級', '專業級'];
   const SKILL_TAG = { code: [1, '會寫程式'], english: [2, '英檢中高級'], swim: [1, '會游泳'], piano: [2, '鋼琴檢定'], cook: [2, '廚藝'], art: [2, '繪畫專長'], fit: [3, '健身達人'], invest: [2, '理財高手'] };
   const last = () => S.cur.items[S.cur.items.length - 1];
   function skillLv(k) { const n = (S.skills && S.skills[k]) || 0; let lv = 0; for (let i = 1; i < SKILL_LV.length; i++) if (n >= SKILL_LV[i]) lv = i; return lv; }
@@ -1763,7 +1762,7 @@
     const stt = status(), a = ageY();
     if (stt === 'army') return d < 5 ? { lbl: '服役', full: true, k: 'sport' } : null;
     if (d >= 5) return null;
-    if (stt === 'school') { if (a < 2) return null; const st = S.school.stage; return { lbl: st === 'kinder' || a < 6 ? '上幼兒園' : '上學', k: 'study' }; }
+    if (stt === 'school') { if (a < 2 || S.school.stage === 'none') return null; const st = S.school.stage; return { lbl: st === 'kinder' || a < 6 ? '上幼兒園' : '上學', k: 'study' }; }
     if (stt === 'uni') return { lbl: '上課', k: 'study' };
     if (stt === 'work' && S.job) return { lbl: S.job.id === 'owner' ? '顧店' : '上班', k: 'study' };
     return null;
@@ -1855,7 +1854,7 @@
       if (inc) S.money += inc;
       const b = bindEvent(A) || {};
       applyFx(scaleFx(A.fx, k), b, out);
-      if (A.skill) skillAdd(A.skill, k, out);
+      if (A.skill) skillUp(A.skill, out, 1);
       if (A.mark) { S.flags[A.mark + 'At'] = S.ageM; S.flags[A.mark + 'N'] = (S.flags[A.mark + 'N'] || 0) + k; }
       S.flags.actM = S.flags.actM || {};
       S.flags.actM[A.id] = (S.flags.actM[A.id] || 0) + 1;
@@ -1968,6 +1967,7 @@
     if (ageY() < 6) { const c = acc.cnt; S.pref = c.sport >= Math.max(c.study, c.social) ? 'active' : c.social > c.study ? 'social' : 'quiet'; }
     const out = [];
     for (const id of lockedSlots()) { const A = actDef(id); if (A && A.fx) applyFx(A.fx, {}, out); }
+    kindMonthly(out);
     S.wk.acc = newAcc();
     S.wk.n = 1;
     postWork();
@@ -1994,7 +1994,7 @@
     const m = S.flags.subjM || {};
     const tierPen = S.school.stage === 'senior' && S.school.tier === 3 ? 6 : 0;
     const base = 18 + 0.42 * S.st.iq + 4.2 * (A.study || 0) * 0.7 - Math.max(0, S.stress - 60) * 0.25 + (S.st.md - 50) * 0.08 + tAdd('grade') - tierPen;
-    const bonus = { chi: hasTrait('語言天賦') ? 5 : 0, eng: (hasTrait('語言天賦') ? 6 : 0) + skillLv('english') * 2, math: hasTrait('數學腦') ? 6 : 0, soc: 0, sci: hasTrait('數學腦') ? 3 : 0 };
+    const bonus = { chi: kindSubBonus('chi') + (hasTrait('語言天賦') ? 5 : 0), eng: kindSubBonus('eng') + (hasTrait('語言天賦') ? 6 : 0) + skillLv('english') * 2, math: kindSubBonus('math') + (hasTrait('數學腦') ? 6 : 0), soc: kindSubBonus('soc'), sci: kindSubBonus('sci') + (hasTrait('數學腦') ? 3 : 0) };
     for (const s of SUBJ_KEYS) {
       const target = clamp(base + 45 * (m[s] || 0) + bonus[s], 0, 100);
       S.subj[s] = clamp(S.subj[s] + (target - S.subj[s]) * 0.15 + gauss() * 1.4, 0, 100);
@@ -2485,6 +2485,157 @@
   };
   Object.assign(SYS_H, MONEY_H);
 
+
+  /* ================================================================
+   * v0.6：選學校（幼兒園、國小、國中、高中班別、高職五專科別）
+   *       職業目標與錄取條件、升遷條件
+   * ================================================================ */
+  const KIND = {
+    pub: { n: '一般班' },
+    kpub: { n: '公立幼兒園', d: '離家近、費用低，跟社區的小朋友一起長大。' },
+    kbi: { n: '私立雙語幼兒園', d: '每天都有外籍老師，英文起步早。', fx: { ch: 0.3 }, skill: ['english', 2], w: 3 },
+    kforest: { n: '森林幼兒園', d: '大部分時間在戶外玩，身體和創意都很好。', fx: { ft: 0.6, cr: 0.5, hp: 0.3 }, w: 3 },
+    epub: { n: '學區公立國小', d: '和鄰居小孩當同學，生活單純。' },
+    epri: { n: '私立小學', d: '課業要求高、才藝課多，學費也高。', fx: { iq: 0.5, st: 0.5 }, sub: 3, w: 4 },
+    eexp: { n: '實驗小學', d: '沒有段考，用專題和戶外課學習。', fx: { cr: 0.8, ch: 0.3 }, sub: -2, w: 2 },
+    jpub: { n: '學區國中', d: '一般國中，課業和社團都兼顧。' },
+    jpri: { n: '私立國中', d: '升學取向，考試多、壓力大。', fx: { iq: 0.5, st: 1 }, sub: 4, w: 3, alt: () => S.grades >= 85, altT: '家境小康以上，或成績 85 分以上' },
+    jmusic: { n: '音樂班', d: '每天練琴、參加樂團。', fx: { cr: 0.7 }, skill: ['piano', 3], need: () => skillLv('piano') >= 2 || S.st.cr >= 60, needT: '鋼琴「初級」以上或創造力 60 以上' },
+    jsport: { n: '體育班', d: '每天訓練，代表學校比賽。', fx: { ft: 0.9, hp: 0.3 }, skill: ['ball', 3], sub: -2, need: () => S.st.ft >= 60, needT: '體能 60 以上' },
+    jsci: { n: '數理資優班', d: '進度快、題目難，數學和自然突飛猛進。', fx: { iq: 0.6, st: 0.8 }, subK: { math: 6, sci: 6 }, need: () => S.subj && S.subj.math >= 85 && S.subj.sci >= 80, needT: '數學 85、自然 80 以上' },
+    spub: { n: '普通班', d: '一般課程，準備學測。' },
+    ssci: { n: '數理資優班', d: '數學與自然加深加廣。', fx: { iq: 0.6, st: 0.8 }, subK: { math: 6, sci: 6 }, need: () => S.subj && S.subj.math >= 85 && S.subj.sci >= 85, needT: '數學、自然都 85 以上' },
+    slang: { n: '語文資優班', d: '大量閱讀、寫作與英文。', fx: { cr: 0.4 }, subK: { chi: 6, eng: 6 }, skill: ['english', 2], need: () => S.subj && S.subj.chi >= 85 && S.subj.eng >= 85, needT: '國文、英文都 85 以上' },
+    sart: { n: '美術班', d: '素描、設計、創作，畢業前辦畢業展。', fx: { cr: 0.9 }, skill: ['art', 3], sub: -2, need: () => S.st.cr >= 60, needT: '創造力 60 以上' },
+    ssport: { n: '體育班', d: '專項訓練，目標全國賽。', fx: { ft: 0.9 }, skill: ['ball', 3], sub: -3, need: () => S.st.ft >= 65, needT: '體能 65 以上' }
+  };
+  function kindWhy(k) {
+    const K = KIND[k];
+    if (K.w && S.fam.wealth < K.w && !(K.alt && K.alt())) return K.altT || ('家境需要「' + WEALTH[K.w].n + '」以上');
+    if (K.need && !K.need()) return K.needT;
+    return '';
+  }
+  function kindCard(title, text, ks, h) {
+    const opts = ks.map(k => ({ t: KIND[k].n, d: KIND[k].d, v: k, dis: kindWhy(k) || null }));
+    sysCard(title, text, null, { opts, h, sn: h === 'kKind' ? 'kinder' : 'classroom' });
+  }
+  function kindCardItem(title, text, ks, h) {
+    kindCard(title, text, ks, h);
+    return S.cur.items.pop();
+  }
+  function kindMonthly(out) {
+    const k = S.school && S.school.kind;
+    if (!k || !KIND[k] || !inSchool() && S.school.stage !== 'kinder') return;
+    const K = KIND[k];
+    if (K.fx) applyFx(K.fx, {}, out);
+    if (K.skill) skillUp(K.skill[0], out, K.skill[1]);
+  }
+  function kindSubBonus(s) {
+    const k = S.school && S.school.kind, K = k && KIND[k];
+    if (!K) return 0;
+    return (K.sub || 0) + ((K.subK && K.subK[s]) || 0);
+  }
+  const VOC_DEPT = { '電機科': '電機、配線、機電整合', '資訊科': '程式設計、網路', '餐飲科': '中西餐、烘焙', '商業經營科': '行銷、會計、門市管理', '廣告設計科': '平面設計、廣告', '汽車科': '汽車修護' };
+  const JC_DEPT = { '護理科': '畢業可考護理師', '電機科': '電機與自動化', '資訊管理科': '資訊系統與程式', '應用外語科': '英文、日文、翻譯', '企業管理科': '經營與行銷' };
+  function deptCard(kind) {
+    const D = kind === 'voc' ? VOC_DEPT : JC_DEPT;
+    const opts = Object.keys(D).map(k => ({ t: k, d: D[k], v: k }));
+    sysCard('選擇科別', '要念' + (kind === 'voc' ? '高職' : '五專') + '的哪一科？科別會影響之後能做的工作。', null, { opts, h: 'dept', sn: 'classroom' });
+  }
+  const SCHOOL_H = {
+    kKind(j, item) {
+      const v = item.opts[j].v, sc = S.school;
+      if (v === 'none') { S.flags.noKinder = true; item.res = '你繼續待在家裡，由家人照顧。'; return []; }
+      sc.stage = 'kinder'; sc.kind = v;
+      sc.name = v === 'kbi' ? pick(['小橡樹', '晨光', '藍天']) + '雙語幼兒園' : v === 'kforest' ? pick(['山丘', '小松果', '綠葉']) + '森林幼兒園' : makeSchoolName('kinder');
+      item.res = '你開始上「' + sc.name + '」了。第一天抓著' + parentsWord() + '的衣角不放，老師笑著把你牽進教室。';
+      return applyFx({ md: -2, ch: 2 }, {}, []);
+    },
+    eKind(j, item) {
+      const v = item.opts[j].v, sc = S.school;
+      sc.kind = v;
+      const core = S.city.n.replace(/[市縣]$/, '');
+      if (v === 'epri') sc.name = '私立' + pick(['薇閣', '再興', '育英', '光華']) + '小學';
+      else if (v === 'eexp') sc.name = core + pick(['森林', '山海', '種籽']) + '實驗小學';
+      item.res = '你背著新書包走進「' + sc.name + '」，成為一年級新生。';
+      return applyFx({ md: 3, iq: 1 }, {}, []);
+    },
+    jKind(j, item) {
+      const v = item.opts[j].v, sc = S.school;
+      sc.kind = v;
+      if (v === 'jpri') sc.name = '私立' + pick(['延平', '明道', '衛道', '復興']) + '中學（國中部）';
+      item.res = '你升上「' + sc.name + '」' + (v !== 'jpub' && v !== 'jpri' ? KIND[v].n : '') + '七年級，換上了新制服。';
+      return applyFx({ st: 4, md: 1 }, {}, []);
+    },
+    sKind(j, item) {
+      const v = item.opts[j].v;
+      S.school.nextKind = v;
+      item.res = '你選了' + KIND[v].n + '。';
+      return [];
+    },
+    dept(j, item) {
+      S.school.dept = item.opts[j].v;
+      item.res = '你決定念' + S.school.dept + '。';
+      addLog('升學', '選了' + S.school.dept + '。', 'school');
+      return [];
+    },
+    promote(j, item) { return []; }
+  };
+  Object.assign(SYS_H, SCHOOL_H);
+
+  // ---- 職業條件 ----
+  const CAT_SKILL = { tech: ['code', '程式設計'], office: ['english', '英文'], creative: ['art', '繪畫'], teach: ['write', '寫作'] };
+  const JOB_SKILL = { chef: ['cook', '料理'], barista: ['cook', '料理'], swe: ['code', '程式設計'] };
+  const DEG_N = ['不限', '國中', '高中職', '專科', '大學', '碩士'];
+  function jobReqs(j) {
+    const R = [];
+    if (j.deg) R.push({ t: '學歷：' + DEG_N[j.deg] + '以上', ok: degRank() >= j.deg, cur: S.degree || '無' });
+    if (j.maj || j.dept) R.push({ t: '科系：' + (j.maj || []).concat(j.dept || []).join('、'), ok: reqMatch(j), cur: (S.path && S.path.major) || S.school.dept || '—' });
+    if (j.tag) R.push({ t: '需要「' + j.tag + '」', ok: S.tags.includes(j.tag) });
+    if (j.stat) R.push({ t: STATS[j.stat] + ' ' + j.dc + ' 以上（錄取率才高）', ok: S.st[j.stat] >= j.dc, cur: Math.round(S.st[j.stat]) });
+    const sk = JOB_SKILL[j.id];
+    if (sk) R.push({ t: sk[1] + '「初級」以上', ok: skillLv(sk[0]) >= 2, cur: SKILL_LV_N[skillLv(sk[0])] });
+    if (j.special) R.push({ t: j.id === 'doctor' ? '醫學系畢業並通過醫師國考' : '通過公務人員考試（在「抉擇」準備公職考試）', ok: false });
+    if (j.needT && j.need) { let ok = false; try { ok = !!j.need(S, API); } catch (e) { ok = false; } R.push({ t: j.needT, ok }); }
+    return R;
+  }
+  LG.careers = function () {
+    return jobs().filter(j => j.id !== 'owner').map(j => ({ id: j.id, n: j.n, cat: j.cat, pay: startPay(j), d: j.d || '', lv: j.lv || [], reqs: jobReqs(j), ok: jobOk(j) && !j.special, goal: S.flags.goalJob === j.id, now: !!(S.job && S.job.id === j.id) }));
+  };
+  LG.setGoal = function (id) { S.flags.goalJob = id || null; if (id) addLog('職涯', '把「' + jobDef(id).n + '」設為職業目標。', 'work'); return { ok: true }; };
+  LG.goal = function () { const id = S.flags.goalJob; if (!id) return null; const j = jobDef(id); return j ? { id, n: j.n, reqs: jobReqs(j), ok: jobOk(j) && !j.special } : null; };
+
+  // ---- 升遷條件 ----
+  function promoReqs() {
+    const J = S.job; if (!J) return null;
+    const jd = jobDef(J.id) || {};
+    const lvls = jd.lv || [J.title];
+    if (J.lvl >= lvls.length - 1) return { top: true, title: J.title, reqs: [] };
+    const L = J.lvl, next = lvls[L + 1], top = L + 1 === lvls.length - 1;
+    const months = 18 + 12 * L, perf = 62 + 6 * L, stat = jd.stat || 'iq', sv = Math.min(85, (jd.dc || 40) + 8 + 8 * L);
+    const yrs = S.ageM - J.lvlSince;
+    const R = [
+      { t: '目前職位年資 ' + (months / 12).toFixed(1).replace('.0', '') + ' 年', ok: yrs >= months, cur: Math.floor(yrs / 12) + ' 年 ' + (yrs % 12) + ' 個月' },
+      { t: '工作表現 ' + perf + ' 以上', ok: J.perf >= perf, cur: Math.round(J.perf) },
+      { t: STATS[stat] + ' ' + sv + ' 以上', ok: S.st[stat] >= sv, cur: Math.round(S.st[stat]) }
+    ];
+    if (top) {
+      R.push({ t: '魅力 50 以上（要帶領團隊）', ok: S.st.ch >= 50, cur: Math.round(S.st.ch) });
+      const sk = JOB_SKILL[J.id] || CAT_SKILL[J.cat];
+      if (sk) R.push({ t: sk[1] + '「中級」以上', ok: skillLv(sk[0]) >= 3, cur: SKILL_LV_N[skillLv(sk[0])] });
+    }
+    return { top: false, title: J.title, next, reqs: R, ok: R.every(r => r.ok) };
+  }
+  LG.promo = () => promoReqs();
+  function doPromote(J, jd) {
+    const lvls = jd.lv || [J.title];
+    J.lvl++; J.title = lvls[J.lvl]; J.lvlSince = S.ageM;
+    S.flags.bestLvl = Math.max(S.flags.bestLvl || 0, J.lvl);
+    J.pay = Math.round(J.pay * rf(1.15, 1.28) / 100) * 100;
+    S.flags.promos = (S.flags.promos || 0) + 1;
+    giveAch('升官發財');
+  }
+
   /* ---- 人生抉擇 ---- */
   function crushNpc() { return npcsBy('crush')[0]; }
   function startup() {
@@ -2532,6 +2683,19 @@
     { id: 'job', n: '找工作／換工作', ico: '💼', d: '看看現在能應徵哪些工作。',
       ok: () => ageY() < 16 ? '要 16 歲以上' : !['work', 'seek'].includes(status()) ? '現在在念書、服役或已退休' : '',
       run: () => jobHuntCard(true) },
+    { id: 'career', n: '職業規劃', ico: '🧭', d: () => { const g = LG.goal(); return g ? '目標：' + g.n + (g.ok ? '（已符合條件，可以去應徵）' : '（還差 ' + g.reqs.filter(r => !r.ok).length + ' 項）') : '看看每種職業需要什麼條件，設定你的目標。'; },
+      ok: () => ageY() < 10 ? '10 歲以上才能開始規劃' : '',
+      run: () => true },
+    { id: 'promote', n: '申請升遷', ico: '🎖️', d: () => { const P = promoReqs(); return !P ? '' : P.top ? '已經是最高職位「' + P.title + '」' : '下一個職位：' + P.next + '（條件達成就能申請）'; },
+      ok: () => { if (status() !== 'work' || !S.job) return '目前沒有在工作'; if (S.job.id === 'owner') return '自己當老闆，沒有升遷'; const P = promoReqs(); if (P.top) return '已經是最高職位了'; const bad = P.reqs.filter(r => !r.ok); if (bad.length) return '還差：' + bad.map(r => r.t).join('、'); if (S.flags.promoTry && S.ageM - S.flags.promoTry < 6) return '剛申請過，半年後再試'; return ''; },
+      run: () => {
+        S.flags.promoTry = S.ageM;
+        const J = S.job, jd = jobDef(J.id) || {};
+        const ok = chance(clamp(0.7 + (J.perf - 70) / 100 + (S.econ.s === 'recession' ? -0.2 : 0), 0.4, 0.95));
+        if (ok) { const old = J.title; doPromote(J, jd); sysCard('升遷', '你向主管提出升遷申請，經過面談後順利通過！你從' + old + '升為' + J.title + '，月薪調整為 ' + fmtMoney(J.pay) + '。', { md: 10, st: 3 }, { sn: 'job' }); }
+        else sysCard('升遷', '主管說你的表現很好，但這次名額有限，請你再等等。半年後可以再申請。', { md: -3 }, { sn: 'job' });
+        last().ok = ok;
+      } },
     { id: 'propose', n: '求婚', ico: '💍', d: '和交往的對象共度一生。',
       ok: () => { if (marital() !== 'dating') return '要先有穩定交往的對象'; const c = crushNpc(); if (ageY() < 20) return '要 20 歲以上'; if (S.flags.weddingAt) return '婚禮已經在籌備了'; if (c.rel < 60) return '感情還不夠穩定（好感 ' + Math.round(c.rel) + '／需要 60）'; if (S.ageM - c.since < 12) return '交往滿 1 年才能求婚'; return ''; },
       run: () => sysCard('求婚', '你準備好戒指，想給' + crushNpc().name + '一個驚喜。要在哪裡求婚呢？', null, { opts: [{ t: '在常去散步的河堤邊', v: 'park' }, { t: '在浪漫的餐廳', d: '花費約 ' + fmtMoney(money(8000)), v: 'cafe' }, { t: '再等等', v: null }], h: 'propose', sn: 'park' }) },
@@ -3135,9 +3299,11 @@
     if (S.month === 9 && S.flags.upperPending) {
       const sc = S.school;
       sc.stage = sc.next; sc.grade = 10; sc.name = makeSchoolName(sc.stage, sc.tier);
+      sc.kind = sc.stage === 'senior' ? (sc.nextKind || 'spub') : null;
+      if (sc.stage !== 'senior' && !sc.dept) sc.dept = pick(sc.stage === 'voc' ? Object.keys(VOC_DEPT) : Object.keys(JC_DEPT));
       S.flags.upperPending = false;
       npcsBy('friend').forEach(n => { n.rel = clamp(n.rel - 10, -100, 100); });
-      sysCard('新學校', '你走進「' + sc.name + '」' + (sc.dept ? sc.dept : '') + '，成為新生。', { md: 2, st: 3 });
+      sysCard('新學校', '你走進「' + sc.name + '」' + (sc.dept ? sc.dept : sc.kind && sc.kind !== 'spub' ? KIND[sc.kind].n : '') + '，成為新生。', { md: 2, st: 3 });
       S.flags.sickYear = 0;
       S.flags.justMoved = true;
     }

@@ -403,3 +403,13 @@ select.text-input { appearance: auto; }
 body:has(.modal-wrap) #toast { top: calc(10px + env(safe-area-inset-top)); bottom: auto; }
 .amt-chips { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); margin: 6px 0; }
 .amt-chips button { min-height: 38px; font-size: 13px; }
+
+/* ===== v0.6 職涯 ===== */
+.reqs { list-style: none; margin: 6px 0 4px; padding: 0; font-size: 13.5px; }
+.reqs li { padding: 3px 0; }
+.reqs li.ok { color: var(--good); }
+.reqs .cur { color: var(--muted); font-size: 12px; margin-left: 2px; }
+.career { background: #fff; border-radius: 14px; padding: 12px; box-shadow: 0 0 0 2px var(--line) inset; }
+.career.goal { box-shadow: 0 0 0 2px var(--butter) inset; background: #fffaf0; }
+.career .an { font-weight: 700; }
+.okchip { font-size: 11px; color: #fff; background: var(--good); border-radius: 99px; padding: 1px 7px; margin-left: 2px; }
