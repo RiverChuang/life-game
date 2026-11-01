@@ -401,3 +401,5 @@ select.text-input { appearance: auto; }
 .rise-bg { background: #e5604f; }
 /* 開著視窗時，提示訊息移到上方，不擋按鈕 */
 body:has(.modal-wrap) #toast { top: calc(10px + env(safe-area-inset-top)); bottom: auto; }
+.amt-chips { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); margin: 6px 0; }
+.amt-chips button { min-height: 38px; font-size: 13px; }

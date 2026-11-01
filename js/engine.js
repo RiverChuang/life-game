@@ -7,7 +7,7 @@
   'use strict';
 
   const LG = (root.LG = root.LG || {});
-  LG.version = '0.5.0';
+  LG.version = '0.5.1';
   LG.SAVE_VERSION = 5;
   LG.events = LG.events || [];
   LG.addEvents = function (arr) { for (const e of arr) LG.events.push(e); };
@@ -1511,7 +1511,7 @@
       }
       S.loans = S.loans.filter(L => L.bal > 0.5);
       if (S.inv.mon) {
-        if (S.money > S.inv.mon * 2) { S.inv.bal += S.inv.mon; add('定期定額投資', -S.inv.mon); }
+        if (S.money + (S.bank || 0) > S.inv.mon * 2) { S.inv.bal += S.inv.mon; add('定期定額投資', -S.inv.mon); }
       }
     }
     if (S.inv.bal > 0) {
@@ -2302,6 +2302,43 @@
     }
   }
 
+  // ---- 定期定額基金：金額自己決定 ----
+  function fundWhy() { return ageY() < 18 ? '18 歲以上才能開戶投資' : ''; }
+  LG.fundInfo = function () {
+    ensureMoney();
+    const pay = monthlyPay();
+    return { bal: Math.round(S.inv.bal), mon: S.inv.mon || 0, why: fundWhy(), pay, cash: Math.round(S.money), bank: Math.round(S.bank), max: money(300000) };
+  };
+  LG.setInvest = function (amt) {
+    const why = fundWhy(); if (why) return { err: why };
+    amt = Math.round(+amt);
+    if (!(amt >= 0)) return { err: '金額不對' };
+    if (amt && amt < 1000) return { err: '每月最少 1,000 元' };
+    if (amt > money(300000)) return { err: '每月最多 ' + fmtMoney(money(300000)) };
+    S.inv.mon = Math.round(amt / 100) * 100;
+    addLog('投資', S.inv.mon ? '定期定額改為每月 ' + fmtMoney(S.inv.mon) + '。' : '停止每月定期定額。', 'money');
+    return { ok: true, mon: S.inv.mon };
+  };
+  LG.fundAdd = function (amt) {
+    const why = fundWhy(); if (why) return { err: why };
+    amt = Math.round(+amt);
+    if (!(amt >= 1000)) return { err: '最少投入 1,000 元' };
+    if (amt > S.money) return { err: '錢包現金不夠（可以先從銀行提款）' };
+    S.money -= amt; S.inv.bal += amt;
+    addLog('投資', '單筆投入基金 ' + fmtMoney(amt) + '。', 'money');
+    return { ok: true };
+  };
+  LG.fundSell = function (amt) {
+    amt = amt === 'all' ? Math.round(S.inv.bal) : Math.round(+amt);
+    if (!(amt > 0)) return { err: '金額不對' };
+    if (amt > S.inv.bal + 1) return { err: '基金裡沒有這麼多' };
+    amt = Math.min(amt, Math.round(S.inv.bal));
+    S.inv.bal -= amt; S.money += amt;
+    if (S.inv.bal < 1) S.inv.bal = 0;
+    addLog('投資', '贖回基金 ' + fmtMoney(amt) + '。', 'money');
+    return { ok: true, amt };
+  };
+
   // ---- 股票市場（公司全是虛構的） ----
   const STOCKS = [
     { id: 'idx', n: '小鎮50 指數基金', sec: '指數', p0: 150, beta: 1, vol: 0.012, mu: 0.0002, dy: 0.03, d: '一次買進市場前 50 大公司，波動最小。' },
@@ -2510,7 +2547,7 @@
     { id: 'movehome', n: '搬回家住', ico: '🏡', d: '省房租，也能多陪家人。',
       ok: () => S.home !== 'rent' ? '目前不是租屋' : !S.npcs.some(n => (n.role === 'mom' || n.role === 'dad') && n.alive) ? '家人都不在了' : marital() === 'married' ? '已經成家了' : '',
       run: () => { const out = []; setHome('parents', out); sysCard('搬回家', parentsWord() + '很開心你搬回來，房間一直幫你留著。', { rel: { parents: 4 } }, { sn: 'home' }); last().chips.unshift(...out); } },
-    { id: 'invest', n: '設定每月投資', ico: '📈', d: () => '目前每月投入 ' + fmtMoney(S.inv.mon) + '，投資帳戶 ' + fmtMoney(S.inv.bal) + '。',
+    { id: 'invest', n: '定期定額投資', ico: '📈', d: () => (S.inv.mon ? '目前每月投入 ' + fmtMoney(S.inv.mon) : '金額自己決定') + '，基金市值 ' + fmtMoney(S.inv.bal) + '。到「理財」設定。',
       ok: () => ageY() < 18 ? '要 18 歲以上' : '',
       run: () => sysCard('投資計畫', '你打開證券 APP，想要每月定期定額投資多少？', null, { opts: [0, 3000, 10000, 30000].map(v => ({ t: v ? '每月 ' + fmtMoney(money(v)) : '停止每月扣款', v })).concat(S.inv.bal > 0 ? [{ t: '把投資全部賣掉', v: -1 }] : []), h: 'invest', sn: 'home' }) },
     { id: 'grad', n: '報考研究所', ico: '🎓', d: '再念兩年拿碩士，畢業後起薪較高。',

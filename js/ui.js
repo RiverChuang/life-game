@@ -617,6 +617,21 @@
         '<div class="small muted" id="loan-est"></div><button class="btn btn-soft btn-block" data-act="borrow">申請貸款</button>';
     }
     h += '</section>';
+    // 定期定額
+    const F = LG.fundInfo();
+    h += '<section class="sec card" id="fund"><h3>📊 定期定額基金</h3>';
+    if (F.why) h += '<p class="muted small">🔒 ' + esc(F.why) + '。</p>';
+    else {
+      h += '<p class="small muted">每月自動從錢包扣款，投入分散的股票基金，長期大約跟著整體市場成長。景氣差時會跌，也可能好幾年才回本。</p>' +
+        '<div class="bank-box"><div><div class="small muted">基金市值</div><b>' + money(F.bal) + '</b></div><div><div class="small muted">每月扣款</div><b>' + (F.mon ? money(F.mon) : '未設定') + '</b></div></div>' +
+        '<div class="chips amt-chips">' + [1000, 3000, 5000, 10000, 20000].map(v => '<button data-act="fund-pick" data-v="' + v + '">' + v.toLocaleString() + '</button>').join('') +
+        (F.pay ? [0.1, 0.2, 0.3].map(r => '<button data-act="fund-pick" data-v="' + Math.round(F.pay * r / 100) * 100 + '">收入 ' + r * 100 + '%</button>').join('') : '') + '</div>' +
+        '<div class="row bank-in"><input id="fund-amt" class="text-input grow" inputmode="numeric" placeholder="每月要投入多少" value="' + (F.mon || '') + '"></div>' +
+        '<div class="row bank-btns"><button class="btn btn-primary grow" data-act="fund-set">設定每月金額</button>' + (F.mon ? '<button class="btn btn-ghost" data-act="fund-stop">停止扣款</button>' : '') + '</div>' +
+        '<h4>單筆投入／贖回</h4><div class="row bank-in"><input id="fund-one" class="text-input grow" inputmode="numeric" placeholder="輸入金額"></div>' +
+        '<div class="row bank-btns"><button class="btn btn-soft grow" data-act="fund-add">單筆投入</button><button class="btn btn-soft grow" data-act="fund-sell"' + (F.bal ? '' : ' disabled') + '>贖回</button>' + (F.bal ? '<button class="btn btn-ghost" data-act="fund-sellall">全部贖回</button>' : '') + '</div>';
+    }
+    h += '</section>';
     // 股市
     h += '<section class="sec card"><h3>📈 小鎮股市</h3>';
     h += '<p class="small muted">' + (M.open ? '股價每週變動，7 月發股利。買賣手續費 0.1425%，賣出再扣證交稅 0.3%。景氣好時大多上漲，景氣差時要小心。' : '🔒 ' + esc(M.why) + '，現在可以先看看行情。') + '<br>（公司都是虛構的）</p>';
@@ -962,6 +977,7 @@
     'decide': el => {
       const S = LG.state();
       const from = S.cur.items.length;
+      if (el.dataset.v === 'invest') { ui.tab = 'money'; render(); const f = document.getElementById('fund'); if (f) f.scrollIntoView({ block: 'start' }); return; }
       if (!LG.decide(el.dataset.v)) { toast('現在還不能這麼做'); return; }
       autosave();
       ui.tab = 'month'; ui.idx = Math.min(from, S.cur.items.length - 1);
@@ -1015,6 +1031,12 @@
     'borrow': () => { const v = readAmt('loan-amt'); const yr = ui.loanYr || 5; if (!v) { toast('請先輸入金額'); return; } if (!confirm('確定向銀行借 ' + money(v) + '，分 ' + yr + ' 年還嗎？')) return; const r = LG.borrow(v, yr); if (finDone(r, '💳 貸款核准！每月還 ' + money(r.pay || 0))) render(true); },
     'repay': el => { if (!confirm('確定要提前還清嗎？')) return; if (finDone(LG.repay(+el.dataset.i), '✅ 已還清')) render(true); },
     'stock': el => { stopAuto(); openStock(el.dataset.v); },
+    'fund-pick': el => { const i = document.getElementById('fund-amt'); if (i) i.value = el.dataset.v; },
+    'fund-set': () => { const v = readAmt('fund-amt'); if (!v) { toast('請輸入金額，或按「停止扣款」'); return; } if (finDone(LG.setInvest(v), '📊 每月定期定額 ' + money(Math.round(v / 100) * 100))) render(true); },
+    'fund-stop': () => { if (finDone(LG.setInvest(0), '已停止每月扣款')) render(true); },
+    'fund-add': () => { const v = readAmt('fund-one'); if (finDone(LG.fundAdd(v), '📊 已投入 ' + money(v))) render(true); },
+    'fund-sell': () => { const v = readAmt('fund-one'); const r = LG.fundSell(v); if (finDone(r, '💵 已贖回 ' + money(r.amt || 0))) render(true); },
+    'fund-sellall': () => { if (!confirm('全部贖回？')) return; const r = LG.fundSell('all'); if (finDone(r, '💵 已贖回 ' + money(r.amt || 0))) render(true); },
     'qty': el => { ui.stockQty = +el.dataset.v; setModalHtml(ui.modal.draw()); rebindQty(); },
     'qty-d': el => { const step = ui.stockQty >= 1000 ? 1000 : ui.stockQty >= 100 ? 100 : ui.stockQty >= 10 ? 10 : 1; ui.stockQty = Math.max(1, ui.stockQty + step * +el.dataset.v); setModalHtml(ui.modal.draw()); rebindQty(); },
     'stock-buy': () => { const r = LG.buyStock(ui.stockId, ui.stockQty); if (finDone(r, '📈 買進成功，共 ' + money(r.tot || 0))) { setModalHtml(ui.modal.draw()); rebindQty(); } },
