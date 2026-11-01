@@ -1,7 +1,7 @@
 {
   "name": "人生遊戲",
   "short_name": "人生遊戲",
-  "description": "從 0 到 99 歲，自己的人生自己決定。",
+  "description": "從 3 到 99 歲，自己的人生自己決定。",
   "lang": "zh-TW",
   "start_url": "./",
   "scope": "./",

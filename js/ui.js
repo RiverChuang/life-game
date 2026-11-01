@@ -113,13 +113,13 @@
       '<button class="btn btn-ghost btn-block" data-act="import">匯入存檔檔案</button>' +
       '</div>' +
       '<div class="title-music">' + musicBtn() + '</div>' +
-      '<span class="proto-badge">v' + LG.version + '・0–' + END_AGE + ' 歲養成・活動 ' + (LG.ACTS || []).length + ' 種・事件 ' + LG.events.length + ' 則・職業 ' + (LG.JOBS || []).length + ' 種</span>' +
+      '<span class="proto-badge">v' + LG.version + '・3–' + END_AGE + ' 歲養成・活動 ' + (LG.ACTS || []).length + ' 種・事件 ' + LG.events.length + ' 則・職業 ' + (LG.JOBS || []).length + ' 種</span>' +
       '</div>';
   }
 
   /* ---------------- 建立角色 ---------------- */
   const WEALTH_PTS = [0, 20, 10, 0, -15, -30];
-  const TALENT_BASE = 30, TALENT_PTS = 60, TALENT_MAX = 70;
+  const TALENT_BASE = 40, TALENT_PTS = 60, TALENT_MAX = 80;
   function randomForm() {
     const g = Math.random() < 0.5 ? 'M' : 'F';
     const st = {};
@@ -152,7 +152,7 @@
       '<text x="70" y="22" text-anchor="middle" font-size="11" fill="#8a82a0">7 歲</text><text x="150" y="22" text-anchor="middle" font-size="11" fill="#8a82a0">28 歲</text><text x="230" y="22" text-anchor="middle" font-size="11" fill="#8a82a0">75 歲</text></svg>';
   }
   function stepper(n) {
-    return '<div class="wiz-steps">' + ['外表', '出生', '天賦'].map((t, i) => '<span class="' + (i + 1 === n ? 'on' : i + 1 < n ? 'done' : '') + '">' + (i + 1) + '. ' + t + '</span>').join('') + '</div>';
+    return '<div class="wiz-steps">' + ['外表', '家庭', '3 歲能力'].map((t, i) => '<span class="' + (i + 1 === n ? 'on' : i + 1 < n ? 'done' : '') + '">' + (i + 1) + '. ' + t + '</span>').join('') + '</div>';
   }
   function showCreate() {
     stopAuto();
@@ -179,7 +179,7 @@
       '<div class="field"><label>星座</label><div class="chips">' + zs.map(z => '<button data-act="f-zodiac" data-v="' + z + '" class="' + (f.zodiac === z ? 'on' : '') + '">' + z.replace('座', '') + '</button>').join('') + '</div><p class="muted small">星座決定你的出生月份。</p></div>' +
       '<div class="field"><label>遊戲模式</label><div class="seg"><button class="on">單局獨立</button><button disabled>傳承制（之後推出）</button></div></div>' +
       '</div>' +
-      '<div class="sticky-bottom"><div class="inner"><button class="btn btn-soft" data-act="rand-all">🎲 隨機</button><button class="btn btn-primary grow" data-act="wiz-next">下一步：出生 →</button></div></div>';
+      '<div class="sticky-bottom"><div class="inner"><button class="btn btn-soft" data-act="rand-all">🎲 隨機</button><button class="btn btn-primary grow" data-act="wiz-next">下一步：家庭 →</button></div></div>';
     const h = document.getElementById('f-h'), w = document.getElementById('f-w'), n = document.getElementById('f-name');
     const upd = () => { document.getElementById('preview').innerHTML = previewSvg(f); };
     h.addEventListener('input', () => { f.height = +h.value; document.getElementById('v-h').textContent = h.value + ' cm'; upd(); });
@@ -198,7 +198,7 @@
       '<div class="field"><label>家庭</label><div class="chips">' + Object.keys(D.STRUCTS).map(k => '<button data-act="b-struct" data-v="' + k + '" class="' + (B.struct === k ? 'on' : '') + '">' + D.STRUCTS[k].n + '</button>').join('') + '</div></div>' +
       '<div class="field"><label>兄弟姊妹</label><div class="seg seg5">' + [0, 1, 2, 3, 4].map(n => '<button data-act="b-sibs" data-v="' + n + '" class="' + (B.sibs === n ? 'on' : '') + '">' + (n ? n + ' 個' : '獨生') + '</button>').join('') + '</div></div>' +
       '</div>' +
-      '<div class="sticky-bottom"><div class="inner"><button class="btn btn-primary grow" data-act="wiz-next">下一步：天賦 →</button></div></div>';
+      '<div class="sticky-bottom"><div class="inner"><button class="btn btn-primary grow" data-act="wiz-next">下一步：3 歲能力 →</button></div></div>';
     document.getElementById('b-city').addEventListener('change', e => { B.city = e.target.value; });
   }
   function showTalent() {
@@ -208,7 +208,7 @@
     app.innerHTML =
       '<div class="page">' +
       '<button class="btn btn-ghost" data-act="wiz-back">← 上一步</button>' + stepper(3) +
-      '<h2>天生的能力</h2><p class="muted small">每項從 ' + TALENT_BASE + ' 開始，最多 ' + TALENT_MAX + '。之後怎麼成長，看你每個月怎麼安排。</p>' +
+      '<h2>3 歲時的能力</h2><p class="muted small">遊戲從 3 歲開始。分配你 3 歲時的能力，每項從 ' + TALENT_BASE + ' 開始，最多 ' + TALENT_MAX + '。之後怎麼成長，看你每個月怎麼安排。</p>' +
       '<div class="left-pts' + (left < 0 ? ' neg' : '') + '">剩餘點數 <b>' + left + '</b>（家境「' + D.WEALTH[B.wealth].n + '」' + (WEALTH_PTS[B.wealth] > 0 ? '+' : '') + WEALTH_PTS[B.wealth] + '）</div>' +
       D.STAT_KEYS.map(k => '<div class="alloc-row card"><div class="grow"><div class="an">' + STAT_ICON[k] + ' ' + D.STATS[k] + ' <b>' + B.st[k] + '</b></div><div class="bar"><i style="width:' + B.st[k] + '%;background:' + STAT_COLOR[k] + '"></i></div></div>' +
         '<button class="step" data-act="t-stat" data-k="' + k + '" data-d="-5"' + (B.st[k] <= 10 ? ' disabled' : '') + ' aria-label="減少">−</button>' +

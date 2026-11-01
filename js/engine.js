@@ -7,7 +7,7 @@
   'use strict';
 
   const LG = (root.LG = root.LG || {});
-  LG.version = '0.6.0';
+  LG.version = '0.7.0';
   LG.SAVE_VERSION = 5;
   LG.events = LG.events || [];
   LG.addEvents = function (arr) { for (const e of arr) LG.events.push(e); };
@@ -110,7 +110,7 @@
   const TRAIT_CONFLICT = [['樂觀', '焦慮體質'], ['內向', '社交達人']];
 
   const ACH = {
-    '天才寶寶': '3 歲前智力就很突出',
+    '天才寶寶': '5 歲前智力就很突出',
     '小小藝術家': '12 歲前創造力達到 75',
     '全勤獎': '一整個學年沒有請過病假',
     '書卷獎': '學期成績達到 92 分以上',
@@ -3112,7 +3112,7 @@
 
   function checkAch() {
     const a = ageY();
-    if (a < 3.05 && a >= 2.9 && S.st.iq >= 58) giveAch('天才寶寶');
+    if (a < 5.05 && a >= 4.9 && S.st.iq >= 62) giveAch('天才寶寶');
     if (a < 12 && S.st.cr >= 75) giveAch('小小藝術家');
     if (S.st.ft >= 80) giveAch('運動健將');
     if (a >= 12 && S.st.ch >= 80) giveAch('校園風雲人物');
@@ -3161,7 +3161,7 @@
     else if (rel >= 70) title = '人見人愛';
     else if (hap >= 68) title = '知足常樂';
     else if (!S.job) title = '還在尋找方向';
-    const stages = STAGES.filter(st => st.a1 * 12 <= S.ageM + 12 && st.a0 * 12 < S.ageM).map(stageEval);
+    const stages = STAGES.filter(st => st.a1 * 12 <= S.ageM + 12 && st.a0 * 12 < S.ageM && st.a1 * 12 > (S.flags.startM || 0)).map(stageEval);
     return { total, dims, title, stages, path: S.path, ach: S.ach.slice(), dead: S.dead, ageM: S.ageM, degree: S.degree, job: S.job, nw, ms: marital(), kids: kids().length, gkids: npcsBy('grandchild').length, retired: !!S.retired, skills: Object.keys(S.skills || {}).filter(k => skillLv(k)).map(k => SKILLS[k] + '・' + SKILL_LV_N[skillLv(k)]) };
   }
 
@@ -3209,8 +3209,8 @@
     S.fam = { wealth: wl, struct };
     S.city = { n: c[0], tier: c[1] };
     for (const k of STAT_KEYS) S.st[k] = B.st && B.st[k] != null ? clamp(+B.st[k], 10, 80) : ri(20, 60);
-    S.st.hp = clamp(S.st.hp + 22, 40, 95);
-    S.st.md = B.st && B.st.md != null ? clamp(S.st.md + 15, 40, 90) : ri(50, 70);
+    if (B.st && B.st.hp != null) S.st.hp = clamp(+B.st.hp, 10, 95); else S.st.hp = clamp(S.st.hp + 22, 40, 95);
+    S.st.md = B.st && B.st.md != null ? clamp(+B.st.md, 10, 95) : ri(50, 70);
     S.skills = {};
     S.sched = [];
     S.wk = null; S.subj = null; S.own = {}; S.homeLv = 2; S.plan7 = [];
@@ -3244,15 +3244,21 @@
     }
     S.pref = pick(Object.keys(PREFS));
     S.econ.until = ri(60, 140);
+    // v0.7：人生從 3 歲開始，能力就是玩家分配的 3 歲能力
+    S.ageM = 36; S.flags.startM = 36;
+    S.year -= 0; S.bornYear = S.year - 3;
     updateBody();
     S.birth = {
       wealth: wl, wealthN: WEALTH[wl].n, city: c[0], tier: TIER_N[c[1]], struct: STRUCTS[struct].n,
       sibs: S.npcs.filter(x => x.role === 'sib').map(npcLabel), st: Object.assign({}, S.st), nTraits: nT, month: S.birthMonth
     };
-    S.cur = { y: S.year, m: S.month, ageM: 0, items: [], pre: [], post: [], phase: 'pre' };
+    S.cur = { y: S.year, m: S.month, ageM: S.ageM, items: [], pre: [], post: [], phase: 'pre' };
     S.yearStart = snapshot();
     const sibTxt = nSib ? '，上面還有' + S.birth.sibs.join('、') : '，是家裡第一個孩子';
-    sysCard('出生', S.year + ' 年 ' + S.month + ' 月，你在' + S.city.n + '出生了。家境' + WEALTH[wl].n + '，' + STRUCTS[struct].n + sibTxt + '。從今天起，你的人生由你來安排。', { md: 0 }, { sn: 'nursery' });
+    sysCard('3 歲生日', S.year + ' 年 ' + S.month + ' 月，你 3 歲了！你住在' + S.city.n + '，家境' + WEALTH[wl].n + '，' + STRUCTS[struct].n + sibTxt + '。從今天起，你的人生由你來安排。', { md: 0 }, { sn: 'home' });
+    ensureWeek();
+    kindCard('上幼兒園', parentsWord() + '在討論要讓你上哪一間幼兒園。', ['kpub', 'kbi', 'kforest'], 'kKind');
+    last().opts.push({ t: '先不上幼兒園', d: '在家多陪家人，6 歲直接上小學。', v: 'none' }); last().choices.push({ t: '先不上幼兒園', d: '在家多陪家人，6 歲直接上小學。', dis: null });
     EV_INDEX = null;
     return S;
   };
