@@ -447,3 +447,7 @@ body:has(.modal-wrap) #toast { top: calc(10px + env(safe-area-inset-top)); botto
 .qfb { margin: 12px 0 10px; font-weight: 800; font-size: 16px; text-align: center; }
 .qfb.ok { color: var(--good); }
 .qfb.no { color: var(--bad); }
+/* 設計者署名 */
+.credit { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 18px auto 6px; }
+.credit img { width: 56px; height: 56px; border-radius: 16px; box-shadow: 0 0 0 3px #fff, 0 4px 10px rgba(80, 60, 40, .18); object-fit: cover; }
+.credit b { font-size: 16px; letter-spacing: .5px; }

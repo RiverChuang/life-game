@@ -7,7 +7,7 @@
   'use strict';
 
   const LG = (root.LG = root.LG || {});
-  LG.version = '0.9.0';
+  LG.version = '0.9.1';
   LG.SAVE_VERSION = 5;
   LG.events = LG.events || [];
   LG.addEvents = function (arr) { for (const e of arr) LG.events.push(e); };

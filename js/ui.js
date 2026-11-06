@@ -114,6 +114,7 @@
       '<button class="btn btn-soft btn-block" data-act="load">📂 讀取存檔</button>' +
       '<button class="btn btn-ghost btn-block" data-act="import">匯入存檔檔案</button>' +
       '</div>' +
+      '<div class="credit"><img src="icons/designer.png" alt="遊戲設計者 Corner R" width="56" height="56"><div><div class="small muted">遊戲設計</div><b>Corner R</b></div></div>' +
       '<div class="title-music">' + musicBtn() + '</div>' +
       '<span class="proto-badge">v' + LG.version + '・3–' + END_AGE + ' 歲養成・活動 ' + (LG.ACTS || []).length + ' 種・事件 ' + LG.events.length + ' 則・職業 ' + (LG.JOBS || []).length + ' 種</span>' +
       '</div>';
