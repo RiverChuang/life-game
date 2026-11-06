@@ -7,7 +7,7 @@
   'use strict';
 
   const LG = (root.LG = root.LG || {});
-  LG.version = '0.8.0';
+  LG.version = '0.9.0';
   LG.SAVE_VERSION = 5;
   LG.events = LG.events || [];
   LG.addEvents = function (arr) { for (const e of arr) LG.events.push(e); };
@@ -141,6 +141,8 @@
     '人生回憶錄': '把自己的人生故事寫成一本書',
     '股市新手': '第一次買進股票',
     '夢想成真': '實現自己設定的生涯目標',
+    '考試滿分': '段考五科全部答對',
+    '職場高手': '職務挑戰全對 5 次',
     '職業達人': '職業挑戰拿到幾乎滿分',
     '股市贏家': '在股市累計賺到 100 萬元',
     '金婚': '結婚滿 50 年',
@@ -1686,7 +1688,7 @@
     while (last.length < free && fill.length) { last.push(fill[i % fill.length].id); i++; }
     return { locked: locked.map(id => { const A = actDef(id); return { id, n: A.n, ico: A.ico, k: A.k }; }), free, list, last };
   };
-  LG.needSchedule = function () { return !!S && !S.ended && S.cur.phase === 'pre' && S.cur.items.every(i => i.done) && !S.cur.pre.length; };
+  LG.needSchedule = function () { return !!S && !S.ended && !S.quiz && S.cur.phase === 'pre' && S.cur.items.every(i => i.done) && !S.cur.pre.length; };
   LG.runSchedule = function (ids) {
     if (!LG.needSchedule()) return false;
     const info = LG.schedule();
@@ -2800,7 +2802,7 @@
     S.cur = { y: S.year, m: S.month, ageM: S.ageM, items: [], pre: [], post: [], phase: 'pre' };
     S.yearStart = snapshot();
     S.challenge = { job: jobId, startM: S.ageM, goals: challengeGoals(j), done: {}, months: 0 };
-    S.flags.goalJob = jobId;
+    S.flags.goalJob = jobId; S.flags['goalDone_' + jobId] = S.ageM;
     const out = [];
     if (jobId === 'owner') { S.money += money(500000); startup(); }
     else startJob(j, startPay(j), out);
@@ -2809,6 +2811,102 @@
     sysCard('職業挑戰開始', S.year + ' 年 ' + S.month + ' 月，' + age + ' 歲的你' + (J ? '正式成為「' + J.co + '」的' + J.title + '，月薪 ' + fmtMoney(J.pay) + '。' : '開了自己的小店。') + '在「抉擇」可以看挑戰目標。你的職涯與未來的生活，現在開始！', { md: 3 }, { sn: 'job' });
     EV_INDEX = null;
     return S;
+  };
+
+
+  /* ================================================================
+   * v0.9：學校各科測驗、各行各業職務挑戰（真的要答題）
+   * ================================================================ */
+  const QH = { ri: (a, b) => ri(a, b), chance: p => chance(p), pick: a => pick(a) };
+  const SUBJ_NM = { chi: '國文', eng: '英文', math: '數學', soc: '社會', sci: '自然' };
+  function quizLevel() {
+    const st = S.school.stage;
+    if (st === 'elem') return 'E';
+    if (st === 'junior') return 'J';
+    if (st === 'senior' || st === 'voc' || (st === 'jc' && S.school.grade <= 12)) return 'S';
+    return null;
+  }
+  const EXAM_N = { 4: '下學期期中考', 6: '下學期期末考', 10: '上學期期中考', 12: '上學期期末考' };
+  function schoolExamMonthly() {
+    if (!LG.QUIZ || !inSchool() || !EXAM_N[S.month]) return;
+    const L = quizLevel(); if (!L) return;
+    if (S.school.stage === 'elem' && S.school.grade <= 1 && S.month === 10) return;
+    const n = EXAM_N[S.month];
+    sysCard(n, '這次' + n + '考國文、英文、數學、社會、自然，每科一題。要自己作答，還是憑平常的實力？', null, {
+      opts: [{ t: '✏️ 自己作答', d: '答對越多，各科成績進步越多', v: 'quiz' }, { t: '📖 憑實力作答', d: '依照現在的各科成績自動作答', v: 'auto' }], h: 'quiz', sn: 'classroom', qk: 'school', qn: n
+    });
+  }
+  function jobChallengeMonthly() {
+    if (!LG.QUIZ || status() !== 'work' || !S.job) return;
+    if (S.cd.__jq != null && S.ageM - S.cd.__jq < 3) return;
+    if (!chance(0.45)) return;
+    S.cd.__jq = S.ageM;
+    const J = S.job;
+    const T = { service: '店裡今天特別忙，主管想看看你的應變能力。', road: '今天的任務量特別大，要靠你的判斷完成。', factory: '設備巡檢日，主管要考考大家的專業。', office: '主管丟了幾個急件給你處理。', tech: '專案進入關鍵階段，問題一個接一個。', medical: '今天的值班特別忙碌。', teach: '學校的教學評鑑週到了。', creative: '客戶來提案會議，要看你的專業。', pro: '今天要處理幾件棘手的案件。', public: '民眾和長官都在等你處理公文。', army: '部隊今天進行專業測驗。' }[J.cat] || '今天的工作很有挑戰性。';
+    sysCard('職務挑戰：' + J.title, T + '要親自處理，還是交給經驗？', null, {
+      opts: [{ t: '💪 親自挑戰（答 3 題）', d: '答對越多，工作表現提升越多', v: 'quiz' }, { t: '🧠 交給經驗', d: '依照能力和工作表現自動處理', v: 'auto' }], h: 'quiz', sn: 'job', qk: 'job', qn: '職務挑戰'
+    });
+  }
+  function quizAutoP(q, kind) {
+    if (kind === 'school') return clamp(0.15 + (S.subj ? S.subj[q.s] : S.grades) / 115, 0.15, 0.95);
+    const jd = jobDef(S.job.id) || {};
+    return clamp(0.35 + ((S.st[jd.stat || 'iq'] || 50) - 40) / 100 + (S.job.perf - 50) / 250, 0.2, 0.92);
+  }
+  function quizApply(kind, qs, ans, item, self) {
+    const out = [];
+    let ok = 0;
+    const lines = [];
+    qs.forEach((q, i) => {
+      const right = ans[i] === q.a;
+      if (right) ok++;
+      if (kind === 'school' && S.subj) { const d = right ? (self ? 3.5 : 2) : (self ? -1 : -1.5); S.subj[q.s] = clamp(S.subj[q.s] + d, 0, 100); }
+      if (kind === 'school') lines.push((right ? '⭕ ' : '❌ ') + SUBJ_NM[q.s]);
+    });
+    const n = qs.length;
+    if (kind === 'school') {
+      if (S.subj) S.grades = Object.keys(SUBJ_NM).reduce((t, k) => t + S.subj[k], 0) / 5;
+      const score = Math.round(ok / n * 100);
+      S.flags.examN = (S.flags.examN || 0) + 1;
+      if (ok === n) { S.flags.examFull = (S.flags.examFull || 0) + 1; giveAch('考試滿分', out); }
+      applyFx(ok === n ? { md: 4, st: -2 } : ok >= n - 1 ? { md: 2 } : ok <= 1 ? { md: -3, st: 3 } : { st: 1 }, {}, out);
+      for (const k of ['chi', 'eng', 'math', 'soc', 'sci']) { const q = qs.find(x => x.s === k); if (q) out.push({ k: 'subj', n: SUBJ_NM[k], v: ans[qs.indexOf(q)] === q.a ? 1 : -1 }); }
+      item.res = (self ? '你' : '憑平常的實力，你') + '答對了 ' + ok + ' / ' + n + ' 題（' + score + ' 分）。' + lines.join('　') + (ok === n ? '　滿分！' : ok <= 1 ? '　回家要多複習了。' : '');
+    } else {
+      const J = S.job;
+      const d = ok * (self ? 3 : 2) - (n - ok) * 1.5 + (ok === n ? 3 : 0);
+      J.perf = clamp(J.perf + d, 0, 100);
+      out.push({ k: 'perf', v: Math.round(d) });
+      if (ok === n) { S.flags.jobQuizFull = (S.flags.jobQuizFull || 0) + 1; applyFx({ md: 3 }, {}, out); if (S.flags.jobQuizFull >= 5) giveAch('職場高手', out); }
+      else if (ok === 0) applyFx({ st: 3, md: -2 }, {}, out);
+      item.res = (self ? '你' : '憑著經驗，你') + '處理好 ' + ok + ' / ' + n + ' 件事。' + (ok === n ? '主管對你刮目相看！' : ok >= 2 ? '表現不錯。' : ok === 1 ? '還有進步空間。' : '今天狀況不太好，主管有點擔心。');
+    }
+    item.ok = ok >= Math.ceil(n * 0.6);
+    item.chips = (item.chips || []).concat(out);
+    return out;
+  }
+  const QUIZ_H = {
+    quiz(j, item) {
+      const v = item.opts[j].v;
+      const qs = item.qk === 'school' ? LG.QUIZ.school(quizLevel() || 'E', QH) : LG.QUIZ.job(S.job.id, S.job.cat, QH);
+      if (v === 'auto') {
+        const ans = qs.map(q => chance(quizAutoP(q, item.qk)) ? q.a : (q.a + 1) % q.opts.length);
+        quizApply(item.qk, qs, ans, item, false);
+        return [];
+      }
+      S.quiz = { kind: item.qk, qs, idx: S.cur.items.indexOf(item), title: item.qn };
+      item.res = '作答中……';
+      return [];
+    }
+  };
+  Object.assign(SYS_H, QUIZ_H);
+  LG.quiz = () => (S && S.quiz ? { kind: S.quiz.kind, title: S.quiz.title, qs: S.quiz.qs.map(q => ({ q: q.q, opts: q.opts, s: q.s ? SUBJ_NM[q.s] : null })) } : null);
+  LG.quizAnswer = function (ans) {
+    if (!S || !S.quiz) return null;
+    const Z = S.quiz, item = S.cur.items[Z.idx];
+    const res = Z.qs.map((q, i) => ({ ok: ans[i] === q.a, a: q.a, pick: ans[i] }));
+    quizApply(Z.kind, Z.qs, ans, item || { chips: [] }, true);
+    S.quiz = null;
+    return { res, text: item ? item.res : '' };
   };
 
   /* ---- 人生抉擇 ---- */
@@ -3440,7 +3538,7 @@
 
   LG.canAdvance = function () {
     if (!S || S.ended) return false;
-    if (S.cur.phase !== 'post') return false;
+    if (S.cur.phase !== 'post' || S.quiz) return false;
     return S.cur.items.every(i => i.done) && !S.cur.pre.length && !S.cur.post.length;
   };
 
@@ -3496,6 +3594,8 @@
     monthlyPrep();
     monthlyFamily();
     parentsMonthly();
+    schoolExamMonthly();
+    jobChallengeMonthly();
     monthlyLife();
     if (S.ended) { S.cur.phase = 'post'; return true; }
     preWork();

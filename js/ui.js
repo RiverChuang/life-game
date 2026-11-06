@@ -66,6 +66,7 @@
       case 'contrib': return '<span class="up">善行 +' + c.v + '</span>';
       case 'skill': return '<span class="sp">⭐ ' + esc(c.v) + '</span>';
       case 'perf': return '<span class="' + (c.v > 0 ? 'up' : 'dn') + '">工作表現 ' + fmtD(c.v) + '</span>';
+      case 'subj': return '<span class="' + (c.v > 0 ? 'up' : 'dn') + '">' + esc(c.n) + (c.v > 0 ? ' ⭕' : ' ❌') + '</span>';
       default: return '';
     }
   }
@@ -651,6 +652,56 @@
     return h;
   }
 
+  /* ---------------- 答題 ---------------- */
+  function openQuiz() {
+    const Z = LG.quiz();
+    if (!Z || ui.modal) return;
+    stopAuto();
+    ui.qz = { i: 0, ans: [], shown: false };
+    const draw = () => {
+      const st = ui.qz, q = Z.qs[st.i];
+      const done = st.shown;
+      const right = done && st.res ? st.res[st.i].ok : null;
+      let h = '<div class="quiz"><div class="qhead"><b>' + esc(Z.title) + '</b><span class="small muted">第 ' + (st.i + 1) + ' / ' + Z.qs.length + ' 題</span></div>' +
+        '<div class="qdots">' + Z.qs.map((_, i) => '<i class="' + (i < st.i ? 'past' : i === st.i ? 'now' : '') + '"></i>').join('') + '</div>' +
+        (q.s ? '<span class="qsub">' + esc(q.s) + '</span>' : '') + '<p class="qq">' + esc(q.q) + '</p><div class="qopts">';
+      q.opts.forEach((o, j) => {
+        let cls = '';
+        if (done) { if (j === st.correct) cls = ' right'; else if (j === st.ans[st.i]) cls = ' wrong'; }
+        h += '<button class="qopt' + cls + '" data-act="qz-pick" data-v="' + j + '"' + (done ? ' disabled' : '') + '><span class="ql">' + 'ABCD'[j] + '</span>' + esc(o) + '</button>';
+      });
+      h += '</div>';
+      if (done) h += '<div class="qfb ' + (right ? 'ok' : 'no') + '">' + (right ? '⭕ 答對了！' : '❌ 正確答案是 ' + 'ABCD'[st.correct]) + '</div><button class="btn btn-primary btn-block" data-act="qz-next">' + (st.i >= Z.qs.length - 1 ? '看結果' : '下一題 ▶') + '</button>';
+      return h + '</div>';
+    };
+    openModal(draw(), { type: 'quiz', draw, dismiss: false, Z });
+  }
+  function quizPick(j) {
+    const st = ui.qz, Z = ui.modal && ui.modal.Z;
+    if (!st || !Z || st.shown) return;
+    st.ans[st.i] = j;
+    // 先在本機判斷對錯（答案只在作答完後才交給引擎計分）
+    const full = LG.state().quiz.qs[st.i];
+    st.correct = full.a;
+    st.res = st.res || [];
+    st.res[st.i] = { ok: j === full.a };
+    st.shown = true;
+    setModalHtml(ui.modal.draw());
+  }
+  function quizNext() {
+    const st = ui.qz, Z = ui.modal && ui.modal.Z;
+    if (!st || !Z) return;
+    if (st.i < Z.qs.length - 1) { st.i++; st.shown = false; setModalHtml(ui.modal.draw()); return; }
+    const r = LG.quizAnswer(st.ans);
+    ui.qz = null;
+    closeModal();
+    autosave();
+    const ok = r ? r.res.filter(x => x.ok).length : 0;
+    toast(ok === Z.qs.length ? '🎉 全部答對！' : '答對 ' + ok + ' / ' + Z.qs.length + ' 題');
+    render(true);
+    afterRender();
+  }
+
   /* ---------------- 職業挑戰模式 ---------------- */
   function showChallengePick() {
     stopAuto(); closeModal();
@@ -823,6 +874,7 @@
       main + '</main></div></div>' + footer(S);
     if (keepScroll) window.scrollTo(0, y);
     flushToasts(S);
+    if (LG.quiz && LG.quiz() && !ui.modal) setTimeout(openQuiz, 50);
     musicTheme();
     if (ui.tab === 'money') bindFin();
   }
@@ -1138,6 +1190,8 @@
     'ch-pick': el => pickChallenge(el.dataset.v),
     'ch-go': el => { closeModal(); ui.challenge = el.dataset.v; ui.form = null; ui.step = 1; showCreate(); window.scrollTo(0, 0); },
     'start-challenge': () => startChallenge(),
+    'qz-pick': el => quizPick(+el.dataset.v),
+    'qz-next': () => quizNext(),
     'cat-f': el => { ui.careerCat = el.dataset.v; setModalHtml(ui.modal.draw()); },
     'fund-pick': el => { const i = document.getElementById('fund-amt'); if (i) i.value = el.dataset.v; },
     'fund-set': () => { const v = readAmt('fund-amt'); if (!v) { toast('請輸入金額，或按「停止扣款」'); return; } if (finDone(LG.setInvest(v), '📊 每月定期定額 ' + money(Math.round(v / 100) * 100))) render(true); },

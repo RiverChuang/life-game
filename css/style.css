@@ -429,3 +429,21 @@ body:has(.modal-wrap) #toast { top: calc(10px + env(safe-area-inset-top)); botto
 .challenge .stars { font-size: 20px; letter-spacing: 2px; margin: 4px 0 6px; }
 .challenge .stars .dim { opacity: .22; }
 .act-list.nolimit { max-height: none; }
+
+/* ===== v0.9 測驗與職務挑戰 ===== */
+.quiz .qhead { display: flex; justify-content: space-between; align-items: baseline; }
+.qdots { display: flex; gap: 6px; margin: 8px 0 12px; }
+.qdots i { flex: 1; height: 6px; border-radius: 3px; background: var(--line); }
+.qdots i.past { background: var(--good); }
+.qdots i.now { background: var(--coral); }
+.qsub { display: inline-block; font-size: 12px; font-weight: 700; color: var(--lilac); background: #f3efff; border-radius: 99px; padding: 2px 10px; }
+.qq { font-size: 18px; font-weight: 700; line-height: 1.55; margin: 10px 0 14px; }
+.qopts { display: flex; flex-direction: column; gap: 8px; }
+.qopt { display: flex; align-items: center; gap: 10px; text-align: left; padding: 12px 14px; min-height: 52px; border-radius: 14px; background: #fff; box-shadow: 0 0 0 2px var(--line) inset; font-size: 15px; }
+.qopt .ql { width: 26px; height: 26px; border-radius: 8px; background: #f6efe4; font-weight: 800; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.qopt.right { box-shadow: 0 0 0 3px var(--good) inset; background: #ecfaf3; }
+.qopt.wrong { box-shadow: 0 0 0 3px var(--bad) inset; background: #fff0ee; }
+.qopt:disabled { opacity: 1; }
+.qfb { margin: 12px 0 10px; font-weight: 800; font-size: 16px; text-align: center; }
+.qfb.ok { color: var(--good); }
+.qfb.no { color: var(--bad); }
