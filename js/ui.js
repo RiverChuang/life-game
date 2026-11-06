@@ -39,7 +39,7 @@
   }
   function flushToasts(S) {
     if (!S.toasts || !S.toasts.length) return;
-    S.toasts.forEach((t, i) => setTimeout(() => toast(t.t === 'ach' ? '🏆 解鎖成就：' + t.v : '✨ 你發現了自己的特質：' + t.v), i * 400));
+    S.toasts.forEach((t, i) => setTimeout(() => toast(t.t === 'ach' ? '🏆 解鎖成就：' + t.v : t.t === 'goal' ? t.v : '✨ 你發現了自己的特質：' + t.v), i * 400));
     S.toasts = [];
   }
   function autosave() { if (!Save.auto()) toast('⚠️ 自動存檔失敗：瀏覽器儲存空間不足或被封鎖'); }
@@ -108,7 +108,8 @@
       '<div class="title-hero">' + titleArt() + '<div class="logo-wrap"><div class="logo">人生遊戲</div><div class="logo-sub">自己的人生，自己決定</div></div></div>' +
       '<div class="title-menu">' +
       (cont ? '<button class="btn btn-primary btn-block" data-act="continue">▶ 繼續人生：' + esc(auto.meta.name) + '（' + LG.ageText(auto.meta.ageM) + '）</button>' : '') +
-      '<button class="btn ' + (cont ? 'btn-soft' : 'btn-primary') + ' btn-block" data-act="new">🌱 開始新的人生</button>' +
+      '<button class="btn ' + (cont ? 'btn-soft' : 'btn-primary') + ' btn-block" data-act="new">🌱 開始新的人生（3 歲起）</button>' +
+      '<button class="btn btn-soft btn-block" data-act="challenge">🎯 職業挑戰（從入行開始）</button>' +
       '<button class="btn btn-soft btn-block" data-act="load">📂 讀取存檔</button>' +
       '<button class="btn btn-ghost btn-block" data-act="import">匯入存檔檔案</button>' +
       '</div>' +
@@ -152,7 +153,7 @@
       '<text x="70" y="22" text-anchor="middle" font-size="11" fill="#8a82a0">7 歲</text><text x="150" y="22" text-anchor="middle" font-size="11" fill="#8a82a0">28 歲</text><text x="230" y="22" text-anchor="middle" font-size="11" fill="#8a82a0">75 歲</text></svg>';
   }
   function stepper(n) {
-    return '<div class="wiz-steps">' + ['外表', '家庭', '3 歲能力'].map((t, i) => '<span class="' + (i + 1 === n ? 'on' : i + 1 < n ? 'done' : '') + '">' + (i + 1) + '. ' + t + '</span>').join('') + '</div>';
+    return '<div class="wiz-steps">' + (ui.challenge ? ['外表', '家庭'] : ['外表', '家庭', '3 歲能力']).map((t, i) => '<span class="' + (i + 1 === n ? 'on' : i + 1 < n ? 'done' : '') + '">' + (i + 1) + '. ' + t + '</span>').join('') + '</div>';
   }
   function showCreate() {
     stopAuto();
@@ -198,7 +199,7 @@
       '<div class="field"><label>家庭</label><div class="chips">' + Object.keys(D.STRUCTS).map(k => '<button data-act="b-struct" data-v="' + k + '" class="' + (B.struct === k ? 'on' : '') + '">' + D.STRUCTS[k].n + '</button>').join('') + '</div></div>' +
       '<div class="field"><label>兄弟姊妹</label><div class="seg seg5">' + [0, 1, 2, 3, 4].map(n => '<button data-act="b-sibs" data-v="' + n + '" class="' + (B.sibs === n ? 'on' : '') + '">' + (n ? n + ' 個' : '獨生') + '</button>').join('') + '</div></div>' +
       '</div>' +
-      '<div class="sticky-bottom"><div class="inner"><button class="btn btn-primary grow" data-act="wiz-next">下一步：3 歲能力 →</button></div></div>';
+      '<div class="sticky-bottom"><div class="inner">' + (ui.challenge ? '<button class="btn btn-primary grow" data-act="start-challenge">🎯 開始挑戰！</button>' : '<button class="btn btn-primary grow" data-act="wiz-next">下一步：3 歲能力 →</button>') + '</div></div>';
     document.getElementById('b-city').addEventListener('change', e => { B.city = e.target.value; });
   }
   function showTalent() {
@@ -524,7 +525,7 @@
     const ok = ds.filter(d => d.ok), no = ds.filter(d => !d.ok);
     const row = d => '<div class="dec card' + (d.ok ? '' : ' off') + '"><span class="aico">' + d.ico + '</span><div class="grow"><div class="an">' + esc(d.n) + '</div><div class="small muted">' + esc(d.d || '') + '</div>' +
       (d.ok ? '' : '<div class="small why">🔒 ' + esc(d.why) + '</div>') + '</div>' + (d.ok ? '<button class="btn btn-primary btn-sm" data-act="decide" data-v="' + d.id + '"' + (busy ? ' disabled' : '') + '>決定</button>' : '') + '</div>';
-    return '<section class="sec"><p class="muted small">人生大事由你決定，但要先達到條件。' + (busy ? '（請先處理完目前的事件）' : '') + '</p>' +
+    return goalPanel(S) + '<section class="sec"><p class="muted small">人生大事由你決定，但要先達到條件。' + (busy ? '（請先處理完目前的事件）' : '') + '</p>' +
       (ok.length ? '<h3>現在可以做的</h3>' + ok.map(row).join('') : '<p class="muted small">目前沒有可以做的決定。</p>') +
       (no.length ? '<h3>還沒達成條件</h3>' + no.map(row).join('') : '') + '</section>';
   }
@@ -587,9 +588,32 @@
     const up = h[h.length - 1] >= h[0];
     return '<svg class="spark" width="' + w + '" height="' + hgt + '" viewBox="0 0 ' + w + ' ' + hgt + '"><polyline points="' + pts + '" fill="none" stroke="' + (up ? '#e5604f' : '#2fa784') + '" stroke-width="1.6" stroke-linejoin="round"/></svg>';
   }
-  const CAT_N = { service: '服務業', road: '交通物流', factory: '工廠技術', office: '辦公室', tech: '科技', medical: '醫療', teach: '教育', creative: '創意', public: '公職', army: '軍職' };
+  const CAT_N = { service: '服務業', road: '交通物流', factory: '工廠技術', office: '辦公室', tech: '科技', medical: '醫療', teach: '教育', creative: '創意', pro: '專業', public: '公職', army: '軍職' };
   function reqList(reqs) {
-    return '<ul class="reqs">' + reqs.map(r => '<li class="' + (r.ok ? 'ok' : 'no') + '">' + (r.ok ? '✅' : '⬜') + ' ' + esc(r.t) + (r.cur != null && !r.ok ? '<span class="cur">（目前 ' + esc(String(r.cur)) + '）</span>' : '') + '</li>').join('') + '</ul>';
+    return '<ul class="reqs">' + reqs.map(r => '<li class="' + (r.ok ? 'ok' : 'no') + (r.bonus ? ' bonus' : '') + '">' + (r.ok ? '✅' : r.bonus ? '➕' : '⬜') + ' ' + esc(r.t) + (r.cur != null && !r.ok ? '<span class="cur">（目前 ' + esc(String(r.cur)) + '）</span>' : '') +
+      (!r.ok && r.how ? '<div class="how">👉 ' + esc(r.how) + '</div>' : '') + '</li>').join('') + '</ul>';
+  }
+  function futureHtml(F) {
+    return '<div class="future"><h4>💼 職位與薪水（估計）</h4><div class="ladder">' + F.lv.map((l, i) => '<div><span class="lvn">' + (i + 1) + '</span><span class="grow">' + esc(l.t) + '</span><b>' + money(l.pay) + '</b></div>').join('') + '</div>' +
+      '<h4>🏠 未來的生活</h4>' +
+      '<div class="kv"><span>工作壓力</span><b>' + esc(F.stressN) + '</b></div>' +
+      '<div class="kv"><span>剛入行每月大約能存</span><b>' + money(F.saveM) + '</b></div>' +
+      '<div class="kv"><span>' + esc(F.houseN) + '頭期款</span><b>' + money(F.down) + '</b></div>' +
+      '<div class="kv"><span>存到頭期款大約要</span><b>' + (F.yrs0 ? F.yrs0 + ' 年' : '很難存到') + (F.yrsTop && F.yrsTop !== F.yrs0 ? '<span class="small muted">（升到最高職位約 ' + F.yrsTop + ' 年）</span>' : '') + '</b></div>' +
+      '<div class="kv"><span>退休後每月（' + esc(F.pensionN) + '）</span><b>' + money(F.pension) + '</b></div>' +
+      '<p class="small">' + esc(F.life) + '</p></div>';
+  }
+  function openCareerDetail(id) {
+    const draw = () => {
+      const d = LG.careerDetail(id);
+      const pct = Math.round(d.done / Math.max(1, d.total) * 100);
+      return '<h2>' + esc(d.n) + '</h2><p class="small muted">' + esc(CAT_N[d.cat] || '') + (d.d ? '・' + esc(d.d) : '') + '</p>' +
+        '<h4>🗺️ 生涯路線圖 <span class="small muted">' + d.done + ' / ' + d.total + '</span></h4><div class="bar"><i style="width:' + pct + '%;background:#4fc3a1"></i></div>' + reqList(d.road) +
+        futureHtml(d.future) +
+        '<div class="sheet-actions">' + (d.goal ? '<button class="btn btn-ghost" data-act="goal" data-v="">取消這個目標</button>' : '<button class="btn btn-primary" data-act="goal" data-v="' + id + '">🧭 設為我的生涯目標</button>') +
+        '<button class="btn btn-ghost" data-act="career-back">← 回到職業列表</button></div>';
+    };
+    openModal(draw(), { type: 'careerD', draw, dismiss: true });
   }
   function openCareer() {
     stopAuto();
@@ -597,15 +621,65 @@
       const all = LG.careers();
       const cats = ['all'].concat(Object.keys(CAT_N).filter(c => all.some(j => j.cat === c)));
       const f = ui.careerCat || 'all';
-      const list = all.filter(j => f === 'all' || j.cat === f).sort((a, b) => b.goal - a.goal || b.ok - a.ok || b.pay - a.pay);
-      return '<h2>🧭 職業規劃</h2><p class="small muted">每種職業需要的條件都列在下面。設定一個目標，找工作時會優先出現（⭐）。</p>' +
+      const list = all.filter(j => f === 'all' || j.cat === f).sort((a, b) => b.goal - a.goal || b.now - a.now || (b.done / b.total) - (a.done / a.total) || b.pay - a.pay);
+      return '<h2>🧭 生涯規劃</h2><p class="small muted">每一種職業都可以當目標。點進去看路線圖要怎麼走、以後的生活長什麼樣子。</p>' +
         '<div class="chips pick-tabs">' + cats.map(c => '<button data-act="cat-f" data-v="' + c + '" class="' + (f === c ? 'on' : '') + '">' + (c === 'all' ? '全部' : CAT_N[c]) + '</button>').join('') + '</div>' +
-        '<div class="act-list">' + list.map(j => '<div class="career' + (j.goal ? ' goal' : '') + '"><div class="row"><div class="grow"><div class="an">' + esc(j.n) + (j.now ? ' <span class="sec-tag">目前工作</span>' : '') + (j.ok ? ' <span class="okchip">可應徵</span>' : '') + '</div><div class="small muted">起薪約 ' + money(j.pay) + '・' + esc(j.lv.join(' → ')) + '</div></div>' +
-          (j.goal ? '<button class="btn btn-ghost btn-sm" data-act="goal" data-v="">取消</button>' : '<button class="btn btn-soft btn-sm" data-act="goal" data-v="' + j.id + '">設為目標</button>') + '</div>' +
-          (j.d ? '<div class="small">' + esc(j.d) + '</div>' : '') + reqList(j.reqs) + '</div>').join('') + '</div>' +
+        '<div class="act-list">' + list.map(j => '<button class="career-row' + (j.goal ? ' goal' : '') + '" data-act="career-d" data-v="' + j.id + '"><div class="grow"><div class="an">' + (j.goal ? '🧭 ' : '') + esc(j.n) + (j.now ? ' <span class="sec-tag">目前工作</span>' : '') + (j.ok && !j.now ? ' <span class="okchip">可應徵</span>' : '') + '</div>' +
+          '<div class="small muted">起薪約 ' + money(j.pay) + '・最高 ' + esc(j.lv[j.lv.length - 1] || '') + '</div><div class="bar mini"><i style="width:' + Math.round(j.done / Math.max(1, j.total) * 100) + '%;background:#4fc3a1"></i></div></div><span class="prog">' + j.done + '/' + j.total + '</span><span class="chg">▸</span></button>').join('') + '</div>' +
         '<div class="sheet-actions"><button class="btn btn-ghost" data-act="close-fin">關閉</button></div>';
     };
     openModal(draw(), { type: 'career', draw, dismiss: true });
+  }
+  function goalPanel(S) {
+    const C = LG.challenge();
+    let h = '';
+    if (C) {
+      const stars = C.goals.reduce((t, g) => t + (g.done ? g.star : 0), 0), max = C.goals.reduce((t, g) => t + g.star, 0);
+      h += '<section class="sec card challenge"><h3>🎯 職業挑戰：' + esc(C.n) + '</h3><p class="small muted">' + (C.end ? '挑戰已結算：' + C.stars + ' / ' + C.max + ' 顆星。之後的人生繼續自由發展。' : '在這個職業已經 ' + C.years + ' 年。65 歲或退休時結算。') + '</p>' +
+        '<div class="stars">' + '⭐'.repeat(stars) + '<span class="dim">' + '⭐'.repeat(Math.max(0, max - stars)) + '</span></div>' +
+        '<ul class="reqs">' + C.goals.map(g => '<li class="' + (g.done ? 'ok' : '') + '">' + (g.done ? '✅' : '⬜') + ' ' + esc(g.t) + '<span class="cur">（' + '⭐'.repeat(g.star) + '）</span></li>').join('') + '</ul></section>';
+    }
+    const G = LG.goal();
+    if (G) {
+      const next = G.road.find(r => !r.ok && !r.bonus);
+      h += '<section class="sec card"><h3>🧭 生涯目標：' + esc(G.n) + '</h3><div class="bar"><i style="width:' + Math.round(G.done / Math.max(1, G.total) * 100) + '%;background:#4fc3a1"></i></div>' +
+        '<p class="small">' + (G.now ? '🎉 你已經是' + esc(G.n) + '了！' : next ? '下一步：<b>' + esc(next.t) + '</b>' + (next.how ? '<br><span class="muted">👉 ' + esc(next.how) + '</span>' : '') : '條件都達成了，去應徵吧！') + '</p>' +
+        '<button class="btn btn-soft btn-block" data-act="career-d" data-v="' + G.id + '">查看完整路線圖與未來生活</button></section>';
+    } else if (!C && S.ageM >= 72) {
+      h += '<section class="sec card"><h3>🧭 生涯目標</h3><p class="small muted">還沒有目標。想當什麼？醫師、工程師、廚師、老闆……每種職業都可以選。</p><button class="btn btn-primary btn-block" data-act="decide" data-v="career">選一個生涯目標</button></section>';
+    }
+    return h;
+  }
+
+  /* ---------------- 職業挑戰模式 ---------------- */
+  function showChallengePick() {
+    stopAuto(); closeModal();
+    const all = LG.challengeJobs();
+    const f = ui.chCat || 'all';
+    const cats = ['all'].concat(Object.keys(CAT_N).filter(c => all.some(j => j.cat === c)));
+    const list = all.filter(j => f === 'all' || j.cat === f).sort((a, b) => a.age - b.age || b.pay - a.pay);
+    app.innerHTML = '<div class="page"><button class="btn btn-ghost" data-act="title">← 返回</button>' +
+      '<h2>🎯 職業挑戰</h2><p class="muted small">選一種職業，直接從剛入行開始。挑戰升到最高職位、存錢買房、成家，65 歲或退休時結算星星；之後的人生可以繼續玩下去。</p>' +
+      '<div class="chips pick-tabs">' + cats.map(c => '<button data-act="ch-cat" data-v="' + c + '" class="' + (f === c ? 'on' : '') + '">' + (c === 'all' ? '全部' : CAT_N[c]) + '</button>').join('') + '</div>' +
+      '<div class="act-list nolimit">' + list.map(j => '<button class="career-row" data-act="ch-pick" data-v="' + j.id + '"><div class="grow"><div class="an">' + esc(j.n) + ' <span class="sec-tag">' + esc(CAT_N[j.cat] || '') + '</span></div>' +
+        '<div class="small muted">' + j.age + ' 歲開始・起薪約 ' + money(j.pay) + '・壓力' + (j.st >= 75 ? '很高' : j.st >= 60 ? '偏高' : j.st >= 45 ? '普通' : '輕鬆') + '</div><div class="small">' + esc(j.lv.join(' → ')) + '</div></div><span class="chg">▸</span></button>').join('') + '</div></div>';
+  }
+  function pickChallenge(id) {
+    const j = LG.challengeJobs().find(x => x.id === id);
+    openModal('<h2>挑戰：' + esc(j.n) + '</h2><p class="small muted">' + esc(j.d) + '</p>' +
+      '<div class="kv"><span>開始年齡</span><b>' + j.age + ' 歲（學歷、科系、需要的技能都已具備）</b></div><div class="kv"><span>起薪</span><b>約 ' + money(j.pay) + '</b></div>' +
+      '<h4>職位</h4><p class="small">' + esc(j.lv.join(' → ')) + '</p>' +
+      '<h4>挑戰目標</h4><ul class="reqs"><li>⬜ 升到最高職位（⭐⭐）</li><li>⬜ 工作表現 85（⭐）</li><li>⬜ 淨資產達到起薪 60 倍（⭐）</li><li>⬜ 買房（⭐）</li><li>⬜ 結婚成家（⭐）</li><li>⬜ 這個職業做滿 20 年（⭐）</li><li>⬜ 大部分時間幸福度在 55 以上（⭐）</li></ul>' +
+      '<div class="sheet-actions"><button class="btn btn-primary" data-act="ch-go" data-v="' + id + '">選這個職業，設定角色 →</button><button class="btn btn-ghost" data-act="close">再看看</button></div>', { type: 'chpick', dismiss: true });
+  }
+  function startChallenge() {
+    const f = ui.form, id = ui.challenge;
+    if (!f.name.trim()) { toast('請先輸入名字'); ui.step = 1; showCreate(); return; }
+    const B = f.birth;
+    LG.newChallenge({ name: f.name.trim(), gender: f.gender, height: f.height, weight: f.weight, zodiac: f.zodiac, mode: f.mode, look: { hair: f.hair, hairC: f.hairC, skin: Art.SKINS[f.skin] }, birth: { wealth: B.wealth, city: B.city, struct: B.struct, sibs: B.sibs, st: {} } }, id);
+    ui.form = null; ui.step = 1; ui.challenge = null; ui.endSeen = false; ui.tab = 'month'; ui.idx = 0;
+    autosave();
+    showGame();
   }
   function moneyView(S) {
     const B = LG.bankInfo();
@@ -940,7 +1014,7 @@
 
   /* ---------------- 點擊 ---------------- */
   const ACT = {
-    'new': () => { ui.form = null; ui.step = 1; showCreate(); },
+    'new': () => { ui.form = null; ui.step = 1; ui.challenge = null; showCreate(); },
     'continue': () => { const a = Save.loadAuto(); if (a) loadData(a); },
     'load': openLoad,
     'import': () => fileInput.click(),
@@ -1056,7 +1130,14 @@
     'borrow': () => { const v = readAmt('loan-amt'); const yr = ui.loanYr || 5; if (!v) { toast('請先輸入金額'); return; } if (!confirm('確定向銀行借 ' + money(v) + '，分 ' + yr + ' 年還嗎？')) return; const r = LG.borrow(v, yr); if (finDone(r, '💳 貸款核准！每月還 ' + money(r.pay || 0))) render(true); },
     'repay': el => { if (!confirm('確定要提前還清嗎？')) return; if (finDone(LG.repay(+el.dataset.i), '✅ 已還清')) render(true); },
     'stock': el => { stopAuto(); openStock(el.dataset.v); },
-    'goal': el => { LG.setGoal(el.dataset.v || null); autosave(); toast(el.dataset.v ? '🧭 已設為職業目標' : '已取消目標'); setModalHtml(ui.modal.draw()); },
+    'goal': el => { LG.setGoal(el.dataset.v || null); autosave(); toast(el.dataset.v ? '🧭 已設為生涯目標' : '已取消目標'); setModalHtml(ui.modal.draw()); },
+    'career-d': el => { stopAuto(); openCareerDetail(el.dataset.v); },
+    'career-back': () => { openCareer(); },
+    'challenge': () => { ui.chCat = 'all'; showChallengePick(); window.scrollTo(0, 0); },
+    'ch-cat': el => { ui.chCat = el.dataset.v; showChallengePick(); },
+    'ch-pick': el => pickChallenge(el.dataset.v),
+    'ch-go': el => { closeModal(); ui.challenge = el.dataset.v; ui.form = null; ui.step = 1; showCreate(); window.scrollTo(0, 0); },
+    'start-challenge': () => startChallenge(),
     'cat-f': el => { ui.careerCat = el.dataset.v; setModalHtml(ui.modal.draw()); },
     'fund-pick': el => { const i = document.getElementById('fund-amt'); if (i) i.value = el.dataset.v; },
     'fund-set': () => { const v = readAmt('fund-amt'); if (!v) { toast('請輸入金額，或按「停止扣款」'); return; } if (finDone(LG.setInvest(v), '📊 每月定期定額 ' + money(Math.round(v / 100) * 100))) render(true); },

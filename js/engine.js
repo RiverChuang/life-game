@@ -7,7 +7,7 @@
   'use strict';
 
   const LG = (root.LG = root.LG || {});
-  LG.version = '0.7.0';
+  LG.version = '0.8.0';
   LG.SAVE_VERSION = 5;
   LG.events = LG.events || [];
   LG.addEvents = function (arr) { for (const e of arr) LG.events.push(e); };
@@ -140,6 +140,8 @@
     '長命百歲': '活到 80 歲',
     '人生回憶錄': '把自己的人生故事寫成一本書',
     '股市新手': '第一次買進股票',
+    '夢想成真': '實現自己設定的生涯目標',
+    '職業達人': '職業挑戰拿到幾乎滿分',
     '股市贏家': '在股市累計賺到 100 萬元',
     '金婚': '結婚滿 50 年',
     '千萬富翁': '淨資產超過 1,000 萬元',
@@ -1093,6 +1095,7 @@
     if (S.tags.includes('取得證照') && (j.cat === 'factory' || j.cat === 'service')) p += 0.06;
     if (S.mil.st === 'pending') p -= 0.15;
     if (majorMatch(j)) p += 0.08;
+    if (S.flags.goalJob === j.id) p += 0.08;
     p += tAdd('chk') / 100;
     return Math.round(clamp(p, 0.06, 0.93) * 100);
   }
@@ -1983,6 +1986,8 @@
         opts: [{ t: '跟' + (ageY() < 25 ? parentsWord() : '信任的人') + '說出心裡的壓力' }, { t: '請假，好好休息幾天' }, { t: '咬牙硬撐過去' }], h: 'stress', log: false
       });
     }
+    goalCheck([]);
+    challengeTick();
     S.cur.phase = 'post';
     checkAch();
   }
@@ -2612,7 +2617,7 @@
     const lvls = jd.lv || [J.title];
     if (J.lvl >= lvls.length - 1) return { top: true, title: J.title, reqs: [] };
     const L = J.lvl, next = lvls[L + 1], top = L + 1 === lvls.length - 1;
-    const months = 18 + 12 * L, perf = 62 + 6 * L, stat = jd.stat || 'iq', sv = Math.min(85, (jd.dc || 40) + 8 + 8 * L);
+    const months = 18 + 12 * L, perf = 62 + 6 * L, stat = jd.stat || 'iq', sv = Math.min(75, (jd.dc || 40) + 5 + 5 * L);
     const yrs = S.ageM - J.lvlSince;
     const R = [
       { t: '目前職位年資 ' + (months / 12).toFixed(1).replace('.0', '') + ' 年', ok: yrs >= months, cur: Math.floor(yrs / 12) + ' 年 ' + (yrs % 12) + ' 個月' },
@@ -2635,6 +2640,176 @@
     S.flags.promos = (S.flags.promos || 0) + 1;
     giveAch('升官發財');
   }
+
+
+  /* ================================================================
+   * v0.8：生涯規劃路線圖、未來生活預覽、職業挑戰模式
+   * ================================================================ */
+  const STAT_HINT = { iq: '行程排「讀書」「補習」「圖書館」', ch: '多排社交、社團、和朋友出去', ft: '多排運動：游泳、球類、跑步', cr: '多排才藝：畫畫、音樂、寫作', hp: '多運動、早點休息', md: '多休息、做喜歡的事' };
+  const SKILL_HINT = { code: '排「學程式」', english: '排「讀英文」「英文補習班」', art: '排「畫畫」「美術課」', cook: '排「學做菜」', write: '排「作文班」「寫作」', piano: '排「鋼琴課」', ball: '排「球類運動」' };
+  const DEG_HOW = { 1: '念完國中', 2: '念完高中或高職', 3: '念五專，或念完大學', 4: '考上大學並畢業', 5: '大學畢業後在「抉擇」報考研究所' };
+  function careerDef(id) { return jobDef(id); }
+  function roadmap(j) {
+    const R = [];
+    if (j.id === 'owner') {
+      R.push({ t: '存到創業資金 ' + fmtMoney(money(500000)), ok: S.money + (S.bank || 0) >= money(500000), how: '工作存錢，或到「理財」規劃' });
+      R.push({ t: '魅力 50 以上（顧客喜歡你）', ok: S.st.ch >= 50, how: STAT_HINT.ch });
+      R.push({ t: '創造力 45 以上（有自己的特色）', ok: S.st.cr >= 45, how: STAT_HINT.cr });
+      R.push({ t: '22 歲以上', ok: ageY() >= 22, how: '長大一點再說' });
+      R.push({ t: '在「抉擇」選「創業開店」', ok: !!(S.job && S.job.id === 'owner'), how: '條件都達成後就能開店' });
+      return R;
+    }
+    if (j.deg) R.push({ t: '學歷：' + DEG_N[j.deg] + '以上', ok: degRank() >= j.deg, how: DEG_HOW[j.deg] || '' });
+    if (j.id === 'doctor') {
+      R.push({ t: '學測考高分，大學選「醫學系」', ok: !!(S.path && S.path.major === '醫學系'), how: '高中三年把國英數社自都顧好，學測後選頂尖大學的醫學系' });
+      R.push({ t: '醫學系畢業後通過醫師國考', ok: !!(S.job && S.job.id === 'doctor'), how: '畢業時會自動參加國考，智力越高越容易過' });
+    } else if (j.maj || j.dept) {
+      R.push({ t: '科系：' + (j.maj || []).concat(j.dept || []).join('、'), ok: reqMatch(j), how: (j.maj ? '大學選' + j.maj.join('或') : '') + (j.maj && j.dept ? '；或' : '') + (j.dept ? '念高職／五專選' + j.dept.join('或') : '') });
+    }
+    if (j.stat) R.push({ t: STATS[j.stat] + ' ' + j.dc + ' 以上', ok: S.st[j.stat] >= j.dc, cur: Math.round(S.st[j.stat]), how: STAT_HINT[j.stat] });
+    const sk = JOB_SKILL[j.id];
+    if (sk) R.push({ t: sk[1] + '「初級」以上', ok: skillLv(sk[0]) >= 2, cur: SKILL_LV_N[skillLv(sk[0])], how: SKILL_HINT[sk[0]] || '' });
+    if (j.tag) R.push({ t: '取得「' + j.tag + '」', ok: S.tags.includes(j.tag), how: j.tag.includes('駕照') ? '18 歲後排「考駕照」' : '依職業需求準備' });
+    if (j.needT && j.need) { let ok = false; try { ok = !!j.need(S, API); } catch (e) { ok = false; } R.push({ t: j.needT, ok, how: '' }); }
+    if (j.cat === 'public') R.push({ t: '通過公務人員' + (j.id === 'civil' ? '高考' : '普考'), ok: !!(S.job && S.job.id === j.id), how: '畢業後在「抉擇」選「準備公職考試」' });
+    else if (j.id !== 'doctor' && (j.deg || 0) >= 3) R.push({ t: '加分：有「實習經驗」', ok: S.tags.includes('實習經驗'), how: '大三以後排「實習」', bonus: true });
+    R.push({ t: j.cat === 'public' || j.id === 'doctor' ? '正式上任' : '應徵並錄取', ok: !!(S.job && S.job.id === j.id), how: j.cat === 'public' || j.id === 'doctor' ? '' : '條件達成後在「抉擇」→「找工作」應徵（目標會優先出現）' });
+    return R;
+  }
+  function lvlPays(j) {
+    const p0 = startPay(j), n = (j.lv || [1]).length;
+    return (j.lv || [j.n]).map((t, i) => ({ t, pay: Math.round(p0 * Math.pow(1.21, i) / 100) * 100 }));
+  }
+  function futureLife(j) {
+    const P = lvlPays(j);
+    const p0 = P[0].pay, pTop = P[P.length - 1].pay;
+    const live = money(LIVING[S.city.tier] || 15000);
+    const save = p => Math.max(0, p * 0.88 - live - p * 0.12);
+    const H = LG.HOMES ? LG.HOMES.buy.find(h => h.lv === 2) : null;
+    const price = money(HOUSE[S.city.tier] * (H ? H.mul : 1));
+    const down = price * 0.23;
+    const yrs = p => { const s = save(p) * 12; return s > 0 ? Math.ceil(down / s) : null; };
+    const st = j.st || 50;
+    const pen = j.cat === 'public' ? Math.round(pTop * 0.6) : Math.round(Math.min(pTop, money(45800)) * 35 * 0.0155);
+    const life = pTop >= money(120000) ? '收入很高，可以住大房子、出國旅行，但通常也很忙。' : pTop >= money(70000) ? '收入不錯，努力存錢可以買房、養家。' : pTop >= money(45000) ? '收入普通，要精打細算，租屋或和家人同住比較輕鬆。' : '收入偏低，可能需要兼差或靠家人幫忙，生活比較辛苦。';
+    return {
+      lv: P, stress: st, stressN: st >= 75 ? '很高' : st >= 60 ? '偏高' : st >= 45 ? '普通' : '輕鬆',
+      saveM: Math.round(save(p0)), houseN: (H ? H.n : '電梯小宅') + '（' + S.city.n + '）', price: Math.round(price), down: Math.round(down), yrs0: yrs(p0), yrsTop: yrs(pTop),
+      pension: pen, pensionN: j.cat === 'public' ? '公職月退俸' : '勞保年金（估）', life
+    };
+  }
+  LG.careerDetail = function (id) {
+    const j = careerDef(id); if (!j) return null;
+    const R = roadmap(j);
+    const need = R.filter(r => !r.bonus);
+    return { id, n: j.n, cat: j.cat, d: j.d || '', road: R, done: need.filter(r => r.ok).length, total: need.length, future: futureLife(j), goal: S.flags.goalJob === id, now: !!(S.job && S.job.id === id) };
+  };
+  LG.careers = function () {
+    return jobs().map(j => { const R = roadmap(j).filter(r => !r.bonus); return { id: j.id, n: j.n, cat: j.cat, pay: startPay(j), d: j.d || '', lv: j.lv || [], done: R.filter(r => r.ok).length, total: R.length, ok: (jobOk(j) && !j.special) || (j.id === 'owner' && R.slice(0, 4).every(r => r.ok)), goal: S.flags.goalJob === j.id, now: !!(S.job && S.job.id === j.id) }; });
+  };
+  LG.goal = function () {
+    const id = S.flags.goalJob; if (!id) return null;
+    const d = LG.careerDetail(id); if (!d) return null;
+    return Object.assign(d, { reqs: d.road });
+  };
+  function goalCheck(out) {
+    const id = S.flags.goalJob; if (!id) return;
+    if (S.job && S.job.id === id && !S.flags['goalDone_' + id]) {
+      S.flags['goalDone_' + id] = S.ageM;
+      giveAch('夢想成真', out);
+      sysCard('夢想成真', '你實現了自己的生涯目標，成為' + jobDef(id).n + '！一路走來的努力都值得了。', { md: 12 }, { sn: 'job' });
+    }
+  }
+
+  // ---- 職業挑戰模式：選一種職業，從剛入行開始 ----
+  function startAgeFor(j) { return j.id === 'doctor' ? 25 : j.id === 'owner' ? 22 : (j.deg || 0) >= 5 ? 24 : (j.deg || 0) >= 4 ? 22 : (j.deg || 0) >= 3 ? 20 : 18; }
+  const DEG_STR = { 0: '高中', 1: '國中', 2: '高中', 3: '專科', 4: '學士', 5: '碩士' };
+  LG.challengeJobs = () => jobs().map(j => ({ id: j.id, n: j.n, cat: j.cat, age: startAgeFor(j), pay: Math.round(j.pay / 100) * 100, lv: j.lv || [], d: j.d || '', st: j.st || 50 }));
+  function challengeGoals(j) {
+    const top = (j.lv || [1]).length - 1;
+    const p0 = j.pay;
+    return [
+      { k: 'top', t: '升到最高職位「' + (j.lv || [j.n])[top] + '」', star: 2 },
+      { k: 'perf', t: '工作表現達到 85', star: 1 },
+      { k: 'nw', t: '淨資產達到 ' + fmtMoney(money(p0 * 60)), v: p0 * 60, star: 1 },
+      { k: 'house', t: '買下自己的房子', star: 1 },
+      { k: 'family', t: '結婚成家', star: 1 },
+      { k: 'stay', t: '在這個職業做滿 20 年', star: 1 },
+      { k: 'hap', t: '大部分時間幸福度在 55 以上', star: 1 }
+    ];
+  }
+  function challengeTick() {
+    const C = S.challenge; if (!C || C.end) return;
+    const J = S.job, inJob = J && J.id === C.job;
+    if (inJob) C.months = (C.months || 0) + 1;
+    const set = k => { if (!C.done[k]) { C.done[k] = S.ageM; const g = C.goals.find(x => x.k === k); if (g) toastQ('🎯 挑戰達成：' + g.t); } };
+    if (inJob && J.lvl >= ((jobDef(C.job).lv || [1]).length - 1)) set('top');
+    if (inJob && J.perf >= 85) set('perf');
+    const g = C.goals.find(x => x.k === 'nw'); if (g && netWorth() >= money(g.v)) set('nw');
+    if (S.home === 'own' || S.house) set('house');
+    if (marital() === 'married') set('family');
+    if ((C.months || 0) >= 240) set('stay');
+    if (S.month === 12) { C.hapN = (C.hapN || 0) + 1; if (happiness() >= 55) C.hapOk = (C.hapOk || 0) + 1; }
+    if (S.retired || ageY() >= 65 || S.ended) {
+      if (C.hapN && C.hapOk / C.hapN >= 0.7) set('hap');
+      C.end = S.ageM;
+      const stars = C.goals.reduce((t, x) => t + (C.done[x.k] ? x.star : 0), 0), max = C.goals.reduce((t, x) => t + x.star, 0);
+      C.stars = stars; C.max = max;
+      sysCard('職業挑戰結算', '你的' + jobDef(C.job).n + '人生挑戰告一段落。完成 ' + Object.keys(C.done).length + ' / ' + C.goals.length + ' 項目標，獲得 ' + stars + ' / ' + max + ' 顆星！' + (stars >= max - 1 ? '真是精彩的職涯！' : stars >= max / 2 ? '很不錯的一段人生。' : '雖然不完美，也是珍貴的經歷。') + '接下來的人生，繼續由你決定。', { md: 5 }, { sn: 'park' });
+      addLog('挑戰', '職業挑戰結算：' + stars + ' / ' + max + ' 顆星。', 'life');
+      if (stars >= max - 1) giveAch('職業達人');
+    }
+  }
+  function toastQ(t) { S.toasts = S.toasts || []; S.toasts.push({ t: 'goal', v: t }); }
+  LG.challenge = function () {
+    const C = S && S.challenge; if (!C) return null;
+    return { job: C.job, n: jobDef(C.job).n, goals: C.goals.map(g => ({ t: g.t, star: g.star, done: !!C.done[g.k] })), end: !!C.end, stars: C.stars, max: C.max, years: Math.floor((C.months || 0) / 12) };
+  };
+  LG.newChallenge = function (o, jobId) {
+    const j = jobDef(jobId);
+    if (!j) return null;
+    LG.newGame(o);
+    const age = startAgeFor(j);
+    const yrs = age - 3;
+    S.ageM = age * 12; S.flags.startM = S.ageM;
+    S.year += yrs;
+    // 長大：能力自然成長，並達到職業門檻
+    const grow = { hp: 10, iq: 18, ch: 15, md: 0, ft: 15, cr: 12 };
+    for (const k of STAT_KEYS) S.st[k] = clamp(S.st[k] + (grow[k] || 0) + gauss() * 3, 15, 92);
+    if (j.stat) S.st[j.stat] = Math.max(S.st[j.stat], j.dc + ri(3, 10));
+    if (jobId === 'owner') { S.st.ch = Math.max(S.st.ch, 52); S.st.cr = Math.max(S.st.cr, 47); }
+    // 學歷與科系
+    S.school = { stage: 'done', name: j.deg >= 4 ? makeSchoolName('uni', 2) : makeSchoolName('senior', 2), grade: 0 };
+    S.degree = DEG_STR[j.deg || 0];
+    if (jobId === 'doctor') S.path = { kind: 'uni', tier: 1, name: S.school.name, major: '醫學系' };
+    else if (j.maj) S.path = { kind: 'uni', tier: 2, name: S.school.name, major: j.maj[0] };
+    else if (j.dept) { S.school.dept = j.dept[0]; S.path = { kind: 'work', tier: 0, name: '就業', major: j.dept[0] }; }
+    else S.path = { kind: j.deg >= 4 ? 'uni' : 'work', tier: 2, name: S.school.name, major: j.deg >= 4 ? '企業管理學系' : null };
+    S.grades = 70;
+    const sk = JOB_SKILL[jobId] || CAT_SKILL[j.cat];
+    if (sk) { S.skills = S.skills || {}; S.skills[sk[0]] = Math.max(S.skills[sk[0]] || 0, 30); }
+    if (j.tag && !S.tags.includes(j.tag)) S.tags.push(j.tag);
+    if ((j.deg || 0) >= 3 && !S.tags.includes('實習經驗')) S.tags.push('實習經驗');
+    if (S.gender === 'M') S.mil = { st: 'done', kind: '常備役' };
+    S.flags.noKinder = true;
+    // 朋友
+    for (let i = 0; i < 2; i++) { const g = chance(0.5) ? 'M' : 'F'; addNpc({ role: 'friend', name: genName(g), g, rel: ri(35, 60), ageOff: 0, bornAt: ri(-6, 6) }); }
+    S.money = money(20000 + S.fam.wealth * 30000);
+    updateBody();
+    // 開始工作
+    S.cur = { y: S.year, m: S.month, ageM: S.ageM, items: [], pre: [], post: [], phase: 'pre' };
+    S.yearStart = snapshot();
+    S.challenge = { job: jobId, startM: S.ageM, goals: challengeGoals(j), done: {}, months: 0 };
+    S.flags.goalJob = jobId;
+    const out = [];
+    if (jobId === 'owner') { S.money += money(500000); startup(); }
+    else startJob(j, startPay(j), out);
+    S.cur.items = [];
+    const J = S.job;
+    sysCard('職業挑戰開始', S.year + ' 年 ' + S.month + ' 月，' + age + ' 歲的你' + (J ? '正式成為「' + J.co + '」的' + J.title + '，月薪 ' + fmtMoney(J.pay) + '。' : '開了自己的小店。') + '在「抉擇」可以看挑戰目標。你的職涯與未來的生活，現在開始！', { md: 3 }, { sn: 'job' });
+    EV_INDEX = null;
+    return S;
+  };
 
   /* ---- 人生抉擇 ---- */
   function crushNpc() { return npcsBy('crush')[0]; }
@@ -2684,7 +2859,7 @@
       ok: () => ageY() < 16 ? '要 16 歲以上' : !['work', 'seek'].includes(status()) ? '現在在念書、服役或已退休' : '',
       run: () => jobHuntCard(true) },
     { id: 'career', n: '職業規劃', ico: '🧭', d: () => { const g = LG.goal(); return g ? '目標：' + g.n + (g.ok ? '（已符合條件，可以去應徵）' : '（還差 ' + g.reqs.filter(r => !r.ok).length + ' 項）') : '看看每種職業需要什麼條件，設定你的目標。'; },
-      ok: () => ageY() < 10 ? '10 歲以上才能開始規劃' : '',
+      ok: () => ageY() < 6 ? '6 歲以上才能開始規劃' : '',
       run: () => true },
     { id: 'promote', n: '申請升遷', ico: '🎖️', d: () => { const P = promoReqs(); return !P ? '' : P.top ? '已經是最高職位「' + P.title + '」' : '下一個職位：' + P.next + '（條件達成就能申請）'; },
       ok: () => { if (status() !== 'work' || !S.job) return '目前沒有在工作'; if (S.job.id === 'owner') return '自己當老闆，沒有升遷'; const P = promoReqs(); if (P.top) return '已經是最高職位了'; const bad = P.reqs.filter(r => !r.ok); if (bad.length) return '還差：' + bad.map(r => r.t).join('、'); if (S.flags.promoTry && S.ageM - S.flags.promoTry < 6) return '剛申請過，半年後再試'; return ''; },
