@@ -14,13 +14,13 @@ LG.SHOP = [
   { id: 'bike', n: '腳踏車', ico: '🚲', cat: '交通', price: 6000, resale: 0.3, minA: 6, perk: { grow: { ft: 0.06 } }, d: '上學、運動都能騎。體能成長加快。' },
   { id: 'scooter', n: '機車', ico: '🛵', cat: '交通', price: 85000, up: 1200, resale: 0.35, minA: 18, need: S => S.tags.includes('機車駕照'), needT: '要先考到機車駕照', fx: { tag: '有機車' }, perk: { md: 0.2 }, d: '台灣人的好夥伴。每月油錢保養約 1,200 元。' },
   { id: 'car', n: '國產小車', ico: '🚗', cat: '交通', price: 680000, up: 7500, resale: 0.45, minA: 18, fx: { tag: '有車' }, perk: { md: 0.6, st: 0.3 }, d: '全家出遊好方便。每月油錢、停車、保險約 7,500 元。' },
-  { id: 'luxcar', n: '進口房車', ico: '🏎️', cat: '交通', price: 2600000, up: 16000, resale: 0.4, minA: 25, perk: { md: 1.2, grow: { ch: 0.05 } }, d: '開出去很有面子。每月開銷約 16,000 元。' },
+  { id: 'luxcar', n: '進口房車', ico: '🏎️', cat: '交通', price: 2600000, up: 16000, resale: 0.4, minA: 18, perk: { md: 1.2, grow: { ch: 0.05 } }, d: '開出去很有面子。每月開銷約 16,000 元。' },
   // 家具家電
   { id: 'desk', n: '書桌與檯燈', ico: '🪑', cat: '家具', price: 5000, resale: 0.2, minA: 6, perk: { grow: { iq: 0.04 } }, d: '有自己的讀書角落。' },
   { id: 'sofa', n: '舒服的沙發', ico: '🛋️', cat: '家具', price: 28000, resale: 0.2, minA: 18, perk: { md: 0.4, st: 0.4 }, d: '下班回家躺著就是幸福。' },
   { id: 'tv', n: '大螢幕電視', ico: '📺', cat: '家具', price: 35000, resale: 0.25, minA: 18, perk: { md: 0.4, st: 0.3 }, d: '全家一起看電影。' },
   { id: 'aircon', n: '變頻冷氣', ico: '❄️', cat: '家具', price: 42000, up: 900, resale: 0.2, minA: 18, perk: { hp: 0, md: 0.4, st: 0.4 }, d: '夏天不再熱到睡不著。' },
-  { id: 'massage', n: '按摩椅', ico: '💺', cat: '家具', price: 120000, resale: 0.3, minA: 30, perk: { st: 1.0, md: 0.3 }, d: '每天按一按，壓力全消。' },
+  { id: 'massage', n: '按摩椅', ico: '💺', cat: '家具', price: 120000, resale: 0.3, minA: 18, perk: { st: 1.0, md: 0.3 }, d: '每天按一按，壓力全消。' },
   // 興趣
   { id: 'piano', n: '鋼琴', ico: '🎹', cat: '興趣', price: 90000, resale: 0.5, minA: 4, perk: { grow: { cr: 0.12 } }, d: '在家就能練琴。創造力成長加快。' },
   { id: 'guitar', n: '吉他', ico: '🎸', cat: '興趣', price: 8000, resale: 0.4, minA: 10, perk: { md: 0.3, grow: { cr: 0.06 } }, d: '自彈自唱，心情好。' },
@@ -29,8 +29,8 @@ LG.SHOP = [
   { id: 'plants', n: '陽台小花園', ico: '🪴', cat: '興趣', price: 4000, up: 200, resale: 0, minA: 10, perk: { md: 0.4, st: 0.3 }, d: '種種花草，療癒身心。' },
   // 時尚
   { id: 'clothes', n: '一整套新衣服', ico: '👕', cat: '時尚', price: 8000, resale: 0, minA: 10, perk: { grow: { ch: 0.05 } }, d: '穿得好看，自信也提升。' },
-  { id: 'watch', n: '名錶', ico: '⌚', cat: '時尚', price: 180000, resale: 0.6, minA: 22, perk: { md: 0.3, grow: { ch: 0.06 } }, d: '低調又有質感。' },
-  { id: 'bag', n: '名牌包', ico: '👜', cat: '時尚', price: 120000, resale: 0.5, minA: 20, perk: { md: 0.4, grow: { ch: 0.05 } }, d: '犒賞自己的禮物。' },
+  { id: 'watch', n: '名錶', ico: '⌚', cat: '時尚', price: 180000, resale: 0.6, minA: 18, perk: { md: 0.3, grow: { ch: 0.06 } }, d: '低調又有質感。' },
+  { id: 'bag', n: '名牌包', ico: '👜', cat: '時尚', price: 120000, resale: 0.5, minA: 18, perk: { md: 0.4, grow: { ch: 0.05 } }, d: '犒賞自己的禮物。' },
   // 寵物
   { id: 'dog', n: '養一隻狗', ico: '🐕', cat: '寵物', price: 3000, up: 2500, resale: 0, minA: 8, need: S => !(S.pet && S.pet.alive), needT: '家裡已經有寵物了', fx: { pet: '狗' }, perk: { md: 0.6, grow: { ft: 0.03 } }, d: '從收容所領養。每月飼料、看醫生約 2,500 元。' },
   { id: 'cat', n: '養一隻貓', ico: '🐈', cat: '寵物', price: 3000, up: 2000, resale: 0, minA: 8, need: S => !(S.pet && S.pet.alive), needT: '家裡已經有寵物了', fx: { pet: '貓' }, perk: { md: 0.6, st: 0.3 }, d: '從收容所領養。每月約 2,000 元。' }

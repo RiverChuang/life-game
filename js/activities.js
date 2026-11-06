@@ -69,7 +69,7 @@ LG.ACTS = [
   { id: 's_game', n: '打電動', ico: '🎮', k: 'leisure', a: [6, 19], stt: KIDS, fx: { md: 3, st: -3, gr: -1 }, sn: 'home', t: ['你破了新的關卡！', '你和朋友線上組隊打遊戲。'] },
   { id: 's_rest', n: '休息放空', ico: '☁️', k: 'leisure', a: [6, 19], stt: KIDS, fx: { st: -4, md: 2, hp: 1 }, sn: 'home', t: ['你在家睡到自然醒。', '你躺在床上聽音樂，什麼都不想。'] },
   { id: 's_exam', n: '考前衝刺', ico: '🔥', k: 'study', a: [14, 19], stt: KIDS, need: (S) => (S.school.grade === 9 && S.month <= 5) || (S.school.grade === 12 && (S.month >= 9 || S.month <= 5)), needT: '會考或學測前才能衝刺', fx: { gr: 5, st: 4, hp: -1 }, sn: 'classroom', t: ['你寫了一整疊考古題。', '你把錯題本整理了一遍。'] },
-  { id: 's_parttime', n: '打工', ico: '🧋', k: 'social', a: [16, 19], stt: KIDS, inc: (S) => S.wageH * 20, fx: { ch: 1, st: 2 }, sn: 'shop', wear: 'apron', t: ['你在飲料店打工，學會了搖飲料。', '週末在便利商店值班。'] },
+  { id: 's_parttime', n: '打工', ico: '🧋', k: 'social', a: [15, 19], stt: KIDS, inc: (S) => S.wageH * 20, fx: { ch: 1, st: 2 }, sn: 'shop', wear: 'apron', t: ['你在飲料店打工，學會了搖飲料。', '週末在便利商店值班。'] },
   { id: 's_date', n: '約會', ico: '💗', k: 'social', a: [13, 19], ms: ['dating'], cost: 300, fx: { rel: { crush: 5 }, md: 3 }, sn: 'park', t: ['你和{crush}一起去看電影。', '你和{crush}在河堤散步聊天。'] },
   { id: 's_meet', n: '參加營隊', ico: '🏕️', k: 'social', a: [13, 19], stt: KIDS, cost: 2000, fx: { ch: 2, md: 2 }, ev: 'a_meet', evP: (S) => (S.tags.includes('交往中') ? 0 : 0.18 + S.st.ch / 500), sn: 'mountain', t: ['你參加了一個暑期營隊，認識好多人。'] },
   { id: 'x_drive', n: '駕訓班', ico: '🛵', k: 'study', a: [18, 70], need: (S) => !S.tags.includes('機車駕照'), needT: '你已經有駕照了', cost: 3000, fx: { iq: 1 }, ev: 'a_license', evP: 1, sn: 'street', t: ['你在駕訓班練習機車路考。'] },

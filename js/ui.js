@@ -288,6 +288,7 @@
       return '<div class="dialog card"><div class="dtab" style="--c:#a48cf7">人生總結</div><p class="dtext">' + (S.dead ? '這段人生走到了終點。' : '你走完了人生的前 ' + END_AGE + ' 年。') + '</p><div class="dfoot"><span></span><button class="btn btn-primary" data-act="end">查看人生總結 →</button></div></div>';
     }
     if (planning(S)) return weekPanel(S);
+    if (S.quiz) return '<div class="dialog card"><p class="dtext">' + esc((LG.quiz() || {}).title || '測驗') + '還沒作答完。</p><div class="dfoot"><span></span><button class="btn btn-primary" data-act="qz-open">繼續作答 ▶</button></div></div>';
     if (seenAll(S) && S.cur.phase === 'pre') return '<div class="dialog card"><p class="dtext">……</p></div>';
     if (monthDone(S)) {
       const fin = S.fin && S.ageM >= 216 ? '<div class="fin-sum">本月收入 <b class="up">' + money(S.fin.inc) + '</b>　支出 <b class="dn">' + money(S.fin.exp) + '</b></div>' : '';
@@ -651,6 +652,22 @@
       h += '<section class="sec card"><h3>🧭 生涯目標</h3><p class="small muted">還沒有目標。想當什麼？醫師、工程師、廚師、老闆……每種職業都可以選。</p><button class="btn btn-primary btn-block" data-act="decide" data-v="career">選一個生涯目標</button></section>';
     }
     return h;
+  }
+
+  /* ---------------- 證照 ---------------- */
+  function openLicense() {
+    stopAuto();
+    const draw = () => {
+      const L = LG.licenses();
+      const own = L.filter(x => x.own), rest = L.filter(x => !x.own).sort((a, b) => !!a.why - !!b.why);
+      const row = x => '<div class="shop-row"><span class="aico">' + x.ico + '</span><div class="grow"><div class="an">' + esc(x.n) + '</div><div class="small muted">' + esc(x.d) + '</div>' +
+        (x.jobs.length ? '<div class="small">可以從事：' + esc(x.jobs.join('、')) + '</div>' : '') + (!x.own && x.why ? '<div class="small why">🔒 ' + esc(x.why) + '</div>' : '') + '</div>' +
+        (x.own ? '<span class="tagcur">已取得</span>' : '<button class="btn btn-primary btn-sm" data-act="lic-take" data-v="' + x.id + '"' + (x.why ? ' disabled' : '') + '>報考<br><span class="small">' + money(x.fee) + '</span></button>') + '</div>';
+      return '<h2>📜 考證照</h2><p class="small muted">很多職業依法要有證照或通過國家考試才能從事。報考資格看學歷、科系和法定年齡，考試 3 題答對 2 題就及格。</p>' +
+        (own.length ? '<h4>已取得</h4>' + own.map(row).join('') : '') + '<h4>可以報考</h4>' + rest.map(row).join('') +
+        '<div class="sheet-actions"><button class="btn btn-ghost" data-act="close-fin">關閉</button></div>';
+    };
+    openModal(draw(), { type: 'lic', draw, dismiss: true });
   }
 
   /* ---------------- 答題 ---------------- */
@@ -1129,6 +1146,7 @@
       const S = LG.state();
       const from = S.cur.items.length;
       if (el.dataset.v === 'career') { openCareer(); return; }
+      if (el.dataset.v === 'license') { openLicense(); return; }
       if (el.dataset.v === 'invest') { ui.tab = 'money'; render(); const f = document.getElementById('fund'); if (f) f.scrollIntoView({ block: 'start' }); return; }
       if (!LG.decide(el.dataset.v)) { toast('現在還不能這麼做'); return; }
       autosave();
@@ -1192,6 +1210,8 @@
     'ch-go': el => { closeModal(); ui.challenge = el.dataset.v; ui.form = null; ui.step = 1; showCreate(); window.scrollTo(0, 0); },
     'start-challenge': () => startChallenge(),
     'qz-pick': el => quizPick(+el.dataset.v),
+    'qz-open': () => { if (!ui.modal) openQuiz(); },
+    'lic-take': el => { const S = LG.state(); const from = S.cur.items.length; const r = LG.takeLicense(el.dataset.v); if (r.err) { toast(r.err); return; } closeModal(); autosave(); ui.tab = 'month'; ui.idx = from; render(); window.scrollTo(0, 0); afterRender(); },
     'qz-next': () => quizNext(),
     'cat-f': el => { ui.careerCat = el.dataset.v; setModalHtml(ui.modal.draw()); },
     'fund-pick': el => { const i = document.getElementById('fund-amt'); if (i) i.value = el.dataset.v; },

@@ -7,7 +7,7 @@
   'use strict';
 
   const LG = (root.LG = root.LG || {});
-  LG.version = '0.9.1';
+  LG.version = '1.0.0';
   LG.SAVE_VERSION = 5;
   LG.events = LG.events || [];
   LG.addEvents = function (arr) { for (const e of arr) LG.events.push(e); };
@@ -142,6 +142,7 @@
     '股市新手': '第一次買進股票',
     '夢想成真': '實現自己設定的生涯目標',
     '考試滿分': '段考五科全部答對',
+    '證照達人': '取得 3 張以上證照',
     '職場高手': '職務挑戰全對 5 次',
     '職業達人': '職業挑戰拿到幾乎滿分',
     '股市贏家': '在股市累計賺到 100 萬元',
@@ -1085,6 +1086,8 @@
     if (degRank() < (j.deg || 0)) return false;
     if ((j.maj || j.dept) && !reqMatch(j)) return false;
     if (j.tag && !S.tags.includes(j.tag)) return false;
+    if (JOB_LIC[j.id] && !hasLic(JOB_LIC[j.id])) return false;
+    if (j.id === 'soldier' && ageY() > 32) return false;
     if (j.g && j.g !== S.gender) return false;
     if (j.need) { try { if (!j.need(S, API)) return false; } catch (e) { return false; } }
     return true;
@@ -1098,6 +1101,7 @@
     if (S.mil.st === 'pending') p -= 0.15;
     if (majorMatch(j)) p += 0.08;
     if (S.flags.goalJob === j.id) p += 0.08;
+    if (LIC_BONUS[j.id] && hasLic(LIC_BONUS[j.id])) p += 0.08;
     p += tAdd('chk') / 100;
     return Math.round(clamp(p, 0.06, 0.93) * 100);
   }
@@ -1139,6 +1143,8 @@
     if (degRank() < (j.deg || 0)) return '學歷需要' + ['', '國中', '高中職', '專科', '大學', '碩士'][j.deg] + '以上';
     if ((j.maj || j.dept) && !reqMatch(j)) return '需要相關科系：' + (j.maj || []).concat(j.dept || []).join('、');
     if (j.tag && !S.tags.includes(j.tag)) return '需要「' + j.tag + '」';
+    if (JOB_LIC[j.id] && !hasLic(JOB_LIC[j.id])) return '需要「' + LIC[JOB_LIC[j.id]].n + '」';
+    if (j.id === 'soldier' && ageY() > 32) return '志願役士官招募年齡上限 32 歲';
     if (j.g && j.g !== S.gender) return '條件不符';
     if (j.need) { try { if (!j.need(S, API)) return j.needT || '條件不符'; } catch (e) { return '條件不符'; } }
     return '';
@@ -2114,7 +2120,7 @@
       const price = money(it.price);
       let why = '';
       if (S.own[it.id]) why = '已經擁有';
-      else if (it.minA && a < it.minA) why = it.minA + ' 歲以上才能買';
+      else if (it.minA && a < it.minA) why = it.minA === 18 ? '成年（18 歲）才能自己購買' : it.minA + ' 歲以上才能使用';
       else if (it.need && !it.need(S)) why = it.needT || '條件不符';
       else if (S.money < price) why = '錢不夠（還差 ' + fmtMoney(price - S.money) + '）';
       return { id: it.id, n: it.n, ico: it.ico, cat: it.cat, d: it.d, price, up: it.up ? money(it.up) : 0, own: !!S.own[it.id], why, sell: S.own[it.id] ? Math.round(price * (it.resale || 0.4)) : 0 };
@@ -2256,7 +2262,7 @@
     const pay = monthlyPay();
     const has = (S.loans || []).filter(L => L.bank).reduce((t, L) => t + L.bal, 0);
     let why = '';
-    if (a < 20) why = '要 20 歲以上才能申請貸款';
+    if (a < 18) why = '要成年（18 歲）才能自己申請貸款';
     else if (!pay) why = '要有穩定收入（工作或退休金）才能貸款';
     else if (a >= 75) why = '年紀太大，銀行不核貸';
     const limit = Math.max(0, Math.round(Math.min(pay * 22, money(3000000)) - has));
@@ -2657,7 +2663,7 @@
       R.push({ t: '存到創業資金 ' + fmtMoney(money(500000)), ok: S.money + (S.bank || 0) >= money(500000), how: '工作存錢，或到「理財」規劃' });
       R.push({ t: '魅力 50 以上（顧客喜歡你）', ok: S.st.ch >= 50, how: STAT_HINT.ch });
       R.push({ t: '創造力 45 以上（有自己的特色）', ok: S.st.cr >= 45, how: STAT_HINT.cr });
-      R.push({ t: '22 歲以上', ok: ageY() >= 22, how: '長大一點再說' });
+      R.push({ t: '成年（18 歲）才能登記商號', ok: ageY() >= 18, how: '' });
       R.push({ t: '在「抉擇」選「創業開店」', ok: !!(S.job && S.job.id === 'owner'), how: '條件都達成後就能開店' });
       return R;
     }
@@ -2671,7 +2677,10 @@
     if (j.stat) R.push({ t: STATS[j.stat] + ' ' + j.dc + ' 以上', ok: S.st[j.stat] >= j.dc, cur: Math.round(S.st[j.stat]), how: STAT_HINT[j.stat] });
     const sk = JOB_SKILL[j.id];
     if (sk) R.push({ t: sk[1] + '「初級」以上', ok: skillLv(sk[0]) >= 2, cur: SKILL_LV_N[skillLv(sk[0])], how: SKILL_HINT[sk[0]] || '' });
-    if (j.tag) R.push({ t: '取得「' + j.tag + '」', ok: S.tags.includes(j.tag), how: j.tag.includes('駕照') ? '18 歲後排「考駕照」' : '依職業需求準備' });
+    if (j.tag && !(JOB_LIC[j.id] && LIC[JOB_LIC[j.id]].n === j.tag)) R.push({ t: '取得「' + j.tag + '」', ok: S.tags.includes(j.tag), how: '依職業需求準備' });
+    if (JOB_LIC[j.id]) { const L = LIC[JOB_LIC[j.id]]; if (L.need) for (const n of L.need) R.push({ t: '取得「' + LIC[n].n + '」', ok: hasLic(n), how: '在「抉擇」→「考證照」報考' }); R.push({ t: '取得「' + L.n + '」', ok: hasLic(JOB_LIC[j.id]), how: '在「抉擇」→「考證照」報考（' + L.d + '）' }); }
+    if (LIC_BONUS[j.id]) R.push({ t: '加分：「' + LIC[LIC_BONUS[j.id]].n + '」', ok: hasLic(LIC_BONUS[j.id]), how: '在「抉擇」→「考證照」報考', bonus: true });
+    if (j.id === 'soldier') R.push({ t: '年齡 32 歲以下（志願役士官招募）', ok: ageY() <= 32, how: '' });
     if (j.needT && j.need) { let ok = false; try { ok = !!j.need(S, API); } catch (e) { ok = false; } R.push({ t: j.needT, ok, how: '' }); }
     if (j.cat === 'public') R.push({ t: '通過公務人員' + (j.id === 'civil' ? '高考' : '普考'), ok: !!(S.job && S.job.id === j.id), how: '畢業後在「抉擇」選「準備公職考試」' });
     else if (j.id !== 'doctor' && (j.deg || 0) >= 3) R.push({ t: '加分：有「實習經驗」', ok: S.tags.includes('實習經驗'), how: '大三以後排「實習」', bonus: true });
@@ -2724,7 +2733,7 @@
   }
 
   // ---- 職業挑戰模式：選一種職業，從剛入行開始 ----
-  function startAgeFor(j) { return j.id === 'doctor' ? 25 : j.id === 'owner' ? 22 : (j.deg || 0) >= 5 ? 24 : (j.deg || 0) >= 4 ? 22 : (j.deg || 0) >= 3 ? 20 : 18; }
+  function startAgeFor(j) { return j.id === 'doctor' ? 25 : j.id === 'owner' ? 20 : j.id === 'driver' ? 20 : (j.deg || 0) >= 5 ? 24 : (j.deg || 0) >= 4 ? 22 : (j.deg || 0) >= 3 ? 20 : 18; }
   const DEG_STR = { 0: '高中', 1: '國中', 2: '高中', 3: '專科', 4: '學士', 5: '碩士' };
   LG.challengeJobs = () => jobs().map(j => ({ id: j.id, n: j.n, cat: j.cat, age: startAgeFor(j), pay: Math.round(j.pay / 100) * 100, lv: j.lv || [], d: j.d || '', st: j.st || 50 }));
   function challengeGoals(j) {
@@ -2792,6 +2801,7 @@
     if (sk) { S.skills = S.skills || {}; S.skills[sk[0]] = Math.max(S.skills[sk[0]] || 0, 30); }
     if (j.tag && !S.tags.includes(j.tag)) S.tags.push(j.tag);
     if ((j.deg || 0) >= 3 && !S.tags.includes('實習經驗')) S.tags.push('實習經驗');
+    if (JOB_LIC[jobId]) { const L = LIC[JOB_LIC[jobId]]; for (const n of (L.need || [])) if (!hasLic(n)) S.tags.push(LIC[n].n); if (!hasLic(JOB_LIC[jobId])) S.tags.push(L.n); }
     if (S.gender === 'M') S.mil = { st: 'done', kind: '常備役' };
     S.flags.noKinder = true;
     // 朋友
@@ -2863,7 +2873,9 @@
       if (kind === 'school') lines.push((right ? '⭕ ' : '❌ ') + SUBJ_NM[q.s]);
     });
     const n = qs.length;
-    if (kind === 'school') {
+    if (kind === 'lic') {
+      licResult(item.lic || (S.quiz && S.quiz.lic), ok, n, item, out);
+    } else if (kind === 'school') {
       if (S.subj) S.grades = Object.keys(SUBJ_NM).reduce((t, k) => t + S.subj[k], 0) / 5;
       const score = Math.round(ok / n * 100);
       S.flags.examN = (S.flags.examN || 0) + 1;
@@ -2887,13 +2899,13 @@
   const QUIZ_H = {
     quiz(j, item) {
       const v = item.opts[j].v;
-      const qs = item.qk === 'school' ? LG.QUIZ.school(quizLevel() || 'E', QH) : LG.QUIZ.job(S.job.id, S.job.cat, QH);
+      const qs = item.qk === 'school' ? LG.QUIZ.school(quizLevel() || 'E', QH) : item.qk === 'lic' ? licQuestions(item.lic) : LG.QUIZ.job(S.job.id, S.job.cat, QH);
       if (v === 'auto') {
-        const ans = qs.map(q => chance(quizAutoP(q, item.qk)) ? q.a : (q.a + 1) % q.opts.length);
+        const ans = qs.map(q => chance(item.qk === 'lic' ? licAutoP(item.lic) : quizAutoP(q, item.qk)) ? q.a : (q.a + 1) % q.opts.length);
         quizApply(item.qk, qs, ans, item, false);
         return [];
       }
-      S.quiz = { kind: item.qk, qs, idx: S.cur.items.indexOf(item), title: item.qn };
+      S.quiz = { kind: item.qk, qs, idx: S.cur.items.indexOf(item), title: item.qn, lic: item.lic || null };
       item.res = '作答中……';
       return [];
     }
@@ -2908,6 +2920,86 @@
     S.quiz = null;
     return { res, text: item ? item.res : '' };
   };
+
+
+  /* ================================================================
+   * v1.0：職業條件符合現實 —— 證照、國家考試取代年齡限制
+   * ================================================================ */
+  // 依臺灣現行制度簡化：age 為法定最低年齡；deg 學歷；dept／maj 科系；need 先備證照
+  const LIC = {
+    moto: { n: '機車駕照', ico: '🛵', age: 18, fee: 450, q: 'delivery', stat: 'iq', dc: 25, d: '年滿 18 歲，筆試加路考。外送員必備。' },
+    car: { n: '普通小型車駕照', ico: '🚗', age: 18, fee: 3500, q: 'driver', stat: 'iq', dc: 30, d: '年滿 18 歲，駕訓班結業後考筆試與路考。' },
+    truck: { n: '職業大貨車駕照', ico: '🚚', age: 20, need: ['car'], fee: 6000, q: 'driver', stat: 'ft', dc: 38, d: '年滿 20 歲、持有汽車駕照，物流司機必備。' },
+    cook: { n: '中餐烹調丙級技術士', ico: '🍳', age: 15, fee: 1800, q: 'chef', stat: 'cr', dc: 35, d: '學科加術科考試。餐廳依法要有一定比例的持證廚師。' },
+    hair: { n: '美髮丙級技術士', ico: '💇', age: 15, fee: 1600, q: 'hair', stat: 'cr', dc: 35, d: '學科加術科考試，美髮設計師的基本證照。' },
+    wire: { n: '室內配線丙級技術士', ico: '🔌', age: 15, fee: 1500, q: 'tech', stat: 'iq', dc: 38, d: '電機技術員常見的必備證照。' },
+    auto: { n: '汽車修護丙級技術士', ico: '🔧', age: 15, fee: 1500, q: 'mechanic', stat: 'ft', dc: 38, d: '汽車技師的入門證照。' },
+    realty: { n: '不動產經紀營業員', ico: '🏠', age: 18, deg: 2, fee: 5000, q: 'realty', stat: 'ch', dc: 40, d: '受訓 30 小時加測驗，依法才能從事房仲業務。' },
+    nurse: { n: '護理師證書（國考）', ico: '🩺', deg: 3, maj: ['醫藥衛生'], dept: ['護理科'], fee: 1500, q: 'nurse', stat: 'iq', dc: 48, d: '護理科系畢業後參加專技高考。' },
+    pharm: { n: '藥師證書（國考）', ico: '💊', deg: 4, maj: ['醫藥衛生'], fee: 1500, q: 'pharm', stat: 'iq', dc: 56, d: '藥學系畢業後參加藥師國考（分兩階段）。' },
+    teacher: { n: '教師證（教檢＋實習）', ico: '🍎', deg: 4, maj: ['教育'], fee: 2000, q: 'teacher', stat: 'ch', dc: 48, d: '修畢師資培育課程、通過教師資格考試並完成半年教育實習。' },
+    lawyer: { n: '律師證書（律師高考）', ico: '⚖️', deg: 4, maj: ['人文法政'], fee: 3000, q: 'lawyer', stat: 'iq', dc: 66, d: '法律系畢業後參加律師高考，錄取率很低。' },
+    acct: { n: '記帳士證書', ico: '🧾', age: 18, deg: 2, fee: 1500, q: 'acct', stat: 'iq', dc: 45, d: '專技普考。會計工作加分，也能自己開業。', bonus: true }
+  };
+  const JOB_LIC = { delivery: 'moto', driver: 'truck', chef: 'cook', hair: 'hair', tech: 'wire', mechanic: 'auto', realty: 'realty', nurse: 'nurse', pharm: 'pharm', teacher: 'teacher', lawyer: 'lawyer' };
+  const LIC_BONUS = { acct: 'acct', bank: 'acct' };
+  function hasLic(id) { return S.tags.includes(LIC[id].n); }
+  function licWhy(id) {
+    const L = LIC[id];
+    if (hasLic(id)) return '已經取得';
+    if (L.age && ageY() < L.age) return '法定年齡要滿 ' + L.age + ' 歲';
+    if (L.need) for (const n of L.need) if (!hasLic(n)) return '要先取得' + LIC[n].n;
+    if (L.deg && degRank() < L.deg) return '學歷要' + DEG_N[L.deg] + '以上（畢業才能報考）';
+    if (L.maj || L.dept) {
+      const okM = L.maj && S.path && S.path.major && L.maj.includes(S.path.major);
+      const okD = L.dept && S.school.dept && L.dept.includes(S.school.dept);
+      if (!okM && !okD) return '要' + (L.maj ? L.maj.join('、') + '類科系' : '') + (L.maj && L.dept ? '或' : '') + (L.dept ? L.dept.join('、') : '') + '畢業';
+    }
+    if (S.flags['licTry_' + id] != null && S.ageM - S.flags['licTry_' + id] < 6) return '剛考過，' + (6 - (S.ageM - S.flags['licTry_' + id])) + ' 個月後才能再報名';
+    if (S.money < money(L.fee) && ageY() >= 18) return '報名費不夠（' + fmtMoney(money(L.fee)) + '）';
+    if (S.cur.items.some(i => !i.done) || S.quiz) return '先處理完眼前的事';
+    return '';
+  }
+  LG.licenses = function () {
+    return Object.keys(LIC).map(id => { const L = LIC[id]; return { id, n: L.n, ico: L.ico, d: L.d, fee: money(L.fee), own: hasLic(id), why: licWhy(id), jobs: Object.keys(JOB_LIC).filter(j => JOB_LIC[j] === id).map(j => jobDef(j).n) }; });
+  };
+  LG.takeLicense = function (id) {
+    const L = LIC[id]; if (!L) return { err: '沒有這張證照' };
+    const why = licWhy(id); if (why) return { err: why };
+    if (ageY() >= 18) S.money -= money(L.fee);
+    S.flags['licTry_' + id] = S.ageM;
+    sysCard(L.n + '考試', '考試當天，你提早到了考場。' + L.d + '要親自作答，還是憑實力？（3 題答對 2 題以上才及格）', null, {
+      opts: [{ t: '✏️ 親自作答', d: '答對 2 題以上就通過', v: 'quiz' }, { t: '📖 憑實力作答', d: '依照' + STATS[L.stat] + '和學歷自動作答', v: 'auto' }], h: 'quiz', sn: id === 'moto' || id === 'car' || id === 'truck' ? 'street' : 'classroom', qk: 'lic', lic: id, qn: L.n
+    });
+    return { ok: true };
+  };
+  function licQuestions(id) { const L = LIC[id], jd = jobDef(L.q) || {}; return LG.QUIZ.job(L.q, jd.cat || 'office', QH); }
+  function licAutoP(id) { const L = LIC[id]; return clamp(0.45 + (S.st[L.stat] - L.dc) / 60, 0.12, 0.93); }
+  function licResult(id, ok, n, item, out) {
+    const L = LIC[id];
+    const pass = ok >= Math.ceil(n * 2 / 3);
+    if (pass) {
+      S.tags.push(L.n);
+      applyFx({ md: 6 }, {}, out);
+      out.push({ k: 'tag', v: L.n });
+      addLog('證照', '取得「' + L.n + '」。', 'school');
+      S.flags.licN = (S.flags.licN || 0) + 1;
+      if (S.flags.licN >= 3) giveAch('證照達人', out);
+      item.res = '答對 ' + ok + ' / ' + n + ' 題，及格！你取得了「' + L.n + '」。';
+    } else {
+      applyFx({ md: -3, st: 2 }, {}, out);
+      item.res = '答對 ' + ok + ' / ' + n + ' 題，這次沒有通過。半年後可以再報名。';
+    }
+    item.ok = pass;
+  }
+  // 依法的工作年齡與退休條件
+  const MIN_WORK_AGE = 15;          // 勞動基準法：未滿 15 歲不得僱用
+  function legalRetireWhy() {
+    const y = (S.insM || 0) / 12, a = ageY();
+    // 勞基法第 53 條：工作 15 年以上年滿 55 歲、工作 25 年以上、工作 10 年以上年滿 60 歲
+    if ((y >= 15 && a >= 55) || y >= 25 || (y >= 10 && a >= 60) || a >= 65) return '';
+    return '依勞基法要符合其中一項：年資 15 年且滿 55 歲、年資 25 年、年資 10 年且滿 60 歲（目前年資 ' + Math.floor(y) + ' 年）';
+  }
 
   /* ---- 人生抉擇 ---- */
   function crushNpc() { return npcsBy('crush')[0]; }
@@ -2954,8 +3046,11 @@
   }
   const DEC = [
     { id: 'job', n: '找工作／換工作', ico: '💼', d: '看看現在能應徵哪些工作。',
-      ok: () => ageY() < 16 ? '要 16 歲以上' : !['work', 'seek'].includes(status()) ? '現在在念書、服役或已退休' : '',
+      ok: () => ageY() < MIN_WORK_AGE ? '依勞基法，未滿 15 歲不能受僱' : !['work', 'seek'].includes(status()) ? '現在在念書、服役或已退休（念書時可以在行程排打工）' : '',
       run: () => jobHuntCard(true) },
+    { id: 'license', n: '考證照', ico: '📜', d: () => '駕照、技術士、國家考試……目前有 ' + Object.keys(LIC).filter(hasLic).length + ' 張證照。',
+      ok: () => ageY() < 15 ? '技術士檢定要滿 15 歲才能報考' : '',
+      run: () => true },
     { id: 'career', n: '職業規劃', ico: '🧭', d: () => { const g = LG.goal(); return g ? '目標：' + g.n + (g.ok ? '（已符合條件，可以去應徵）' : '（還差 ' + g.reqs.filter(r => !r.ok).length + ' 項）') : '看看每種職業需要什麼條件，設定你的目標。'; },
       ok: () => ageY() < 6 ? '6 歲以上才能開始規劃' : '',
       run: () => true },
@@ -2994,10 +3089,10 @@
       ok: () => degRank() < 2 ? '至少要高中職畢業' : ageY() >= 55 ? '年紀超過 55 歲' : S.flags.prep ? '已經在準備了' : !['work', 'seek'].includes(status()) ? '現在不適合' : S.job && S.job.cat === 'public' ? '你已經是公務員了' : '',
       run: () => sysCard('準備公職考試', '要怎麼準備呢？', null, { opts: [{ t: '辭職全心準備', d: '考上機會比較高，但這段時間沒有收入。', v: 'full' }, { t: '一邊工作一邊準備', d: '收入穩定，但比較難考上。', v: 'part', dis: S.job ? null : '你目前沒有工作' }, { t: '再想想', v: null }], h: 'civilPrep', sn: 'home' }) },
     { id: 'startup', n: '創業開店', ico: '🏪', d: () => '需要約 ' + fmtMoney(money(500000)) + ' 的資金。成功與否看創造力與魅力。',
-      ok: () => ageY() < 22 ? '要 22 歲以上' : ageY() >= 70 ? '年紀太大了' : S.job && S.job.id === 'owner' ? '已經在經營自己的店' : ['school', 'uni', 'army'].includes(status()) ? '現在不適合' : S.money < money(500000) ? '資金還差 ' + fmtMoney(money(500000) - S.money) : '',
+      ok: () => ageY() < 18 ? '要成年（18 歲）才能自己登記開店' : ageY() >= 70 ? '年紀太大了' : S.job && S.job.id === 'owner' ? '已經在經營自己的店' : ['school', 'uni', 'army'].includes(status()) ? '現在不適合' : S.money < money(500000) ? '資金還差 ' + fmtMoney(money(500000) - S.money) : '',
       run: () => startup() },
     { id: 'retire', n: '退休', ico: '🌅', d: '離開職場，開始退休生活。',
-      ok: () => status() !== 'work' ? '目前沒有在工作' : ageY() < 55 ? '要 55 歲以上' : ageY() < 60 && (S.insM || 0) < 300 ? '60 歲前退休需要 25 年年資' : '',
+      ok: () => status() !== 'work' ? '目前沒有在工作' : legalRetireWhy(),
       run: () => retire(false) },
     { id: 'care', n: '安排家人的照顧', ico: '🧓', d: '年邁的家人需要人照顧。',
       ok: () => careTarget() ? '' : '目前家人不需要特別照顧',
